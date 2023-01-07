@@ -1,19 +1,27 @@
 import asyncio
 import html
 import logging
+import shlex
 import time
 from asyncio.subprocess import Process
 from datetime import datetime
+from typing import Union
 from zoneinfo import ZoneInfo
 
+from dotenv import dotenv_values
 from humanize import naturalsize
-from pyrogram import Client, enums, filters
-from pyrogram.types import Message
-from typing import Union
-
+from pyrogram import enums, filters
+from pyrogram.client import Client
+from pyrogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
+from pathlib import Path
 from utils import format_hhmmss
 
-MY_CHAT_ID = 427380463
+MY_CHAT_ID = int(dotenv_values(Path(__file__).parent / '.env')["MY_CHAT_ID"] or "")
 TZ = ZoneInfo("Asia/Singapore")
 
 # Enable logging
@@ -31,6 +39,8 @@ app = Client("my_account")
 welcome_message = """Send me any audio file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 1min per minute of audio."""
 
 lock = asyncio.Lock()
+
+cancelled_status = {}
 
 
 async def notify_me(
@@ -52,6 +62,14 @@ async def notify_me(
         await app.send_document(MY_CHAT_ID, transcript)
     else:
         await app.send_message(MY_CHAT_ID, "Encountered error while transcribing.")
+
+
+@app.on_callback_query()
+async def handle_cancel(client, callback_query: CallbackQuery):
+    if callback_query.data == "cancel":
+        message = callback_query.message
+        cancelled_status[message.id] = True
+        await message.edit_reply_markup()
 
 
 @app.on_message(filters.text)
@@ -101,18 +119,20 @@ async def handle_audio(client, message: Message):
 
     async with lock:
 
-        # Whisper doesn't print output without -nt
-        command = f"ffmpeg -hide_banner -i '{path}' -ac 1 -ar 16000 -c:a pcm_s16le '{path}.wav' && /whisper.cpp/main -otxt -nt -m /whisper.cpp/models/ggml-large.bin '{path}.wav' && rm '{path}.wav'"
+        cancelled_status[reply.id] = False
+        markup = InlineKeyboardMarkup([[InlineKeyboardButton("Cancel", "cancel")]])
 
         # Convert to .wav with ffmpeg and transcribe with whisper
-        subproc = await asyncio.create_subprocess_shell(
-            command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
-        )
+        commands = [
+            f"ffmpeg -hide_banner -i '{path}' -ac 1 -ar 16000 -c:a pcm_s16le '{path}.wav'",
+            # Whisper doesn't print output without -nt
+            f"/whisper.cpp/main -otxt -nt -m /whisper.cpp/models/ggml-large.bin '{path}.wav'",
+            f"rm '{path}.wav'",
+        ]
 
         # Log output and update user of progress
         prefix = f"{prefix}\n\nTranscribing..."
-
-        subproc.kill()
+        reply = await reply.edit_text(prefix, reply_markup=markup)
 
         start = time.time()
         output = []
@@ -123,38 +143,64 @@ async def handle_audio(client, message: Message):
                     10
                 ):  # Can't use .readline() because -nt doesn't output newlines
                     line = raw.decode("utf8")
-                    logger.info(line)
                     output.append(line)
 
-        reply = await reply.edit_text(prefix)
+        async def run_commands():
+            proc = None
+            return_code = None
+            try:
+                for command in commands:
+                    proc = await asyncio.subprocess.create_subprocess_exec(
+                        *shlex.split(command),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.STDOUT,
+                    )
+                    task = asyncio.create_task(collect_stdout(proc))
+                    return_code = await proc.wait()
+            except asyncio.CancelledError:
+                logger.info(
+                    f"User {message.from_user.first_name} cancelled task for {path}."
+                )
+                if proc:
+                    proc.kill()
+            finally:
+                return return_code
 
-        collect_stdout_task = asyncio.create_task(collect_stdout(subproc))
+        run_commands_task = asyncio.create_task(run_commands())
 
         # Send user live output
-        while not collect_stdout_task.done():
+        while not run_commands_task.done():
             output_lines = "".join(output[-300:])[-300:]
             await reply.edit_text(
                 f"{prefix} ({round(time.time()-start)}s)\n\n<pre>{html.escape(output_lines)}</pre>",
                 parse_mode=enums.ParseMode.HTML,
+                reply_markup=markup,
             )
+            if cancelled_status[reply.id]:
+                run_commands_task.cancel()
+
             await asyncio.sleep(1)
 
-        # Wait for completion
-        exit_code = await subproc.wait()
-        time_taken = round(time.time() - start)
+        # Flush to log
+        [logger.info(line) for line in "".join(output).split("\n")]
 
-        if exit_code == 0:
-            await reply.edit_text(f"{prefix}done ({time_taken}s).")
+        # Release lock
 
-            # Send text file with transcription to user
-            await message.reply_document(f"{path}.wav.txt", quote=True)
-            await notify_me(message, path, duration, f"{path}.wav.txt")
+    time_taken = round(time.time() - start)
+    exit_code = run_commands_task.result()
 
-        else:
-            await reply.edit_text(
-                f"{prefix}failed ({time_taken}s). Exit status: {exit_code}"
-            )
-            await notify_me(message, path, duration)
+    if exit_code == 0:
+        await reply.edit_text(f"{prefix}done ({time_taken}s).")
+
+        # Send text file with transcription to user
+        await message.reply_document(f"{path}.wav.txt", quote=True)
+        await notify_me(message, path, duration, f"{path}.wav.txt")
+
+    else:
+        await reply.edit_text(
+            f"{prefix}failed ({time_taken}s). Exit status: {exit_code}"
+        )
+        await notify_me(message, path, duration)
 
 
 app.run()
