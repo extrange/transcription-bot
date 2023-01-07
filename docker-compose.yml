@@ -1,0 +1,8 @@
+services:
+  whisper:
+    container_name: whisper
+    build: .
+    restart: always
+    volumes: 
+      - ./src:/src
+    command: python3 /src/bot.py
