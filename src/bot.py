@@ -1,4 +1,5 @@
 import asyncio
+import re
 import html
 import logging
 import shlex
@@ -36,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 app = Client("my_account")
 
-welcome_message = """Send me any audio file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 1min per minute of audio."""
+welcome_message = """Send me any audio/video file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 1min per minute of audio."""
 
 lock = asyncio.Lock()
 
@@ -77,14 +78,15 @@ async def handle_non_audio(client, message: Message):
     await message.reply_text(welcome_message)
 
 
-@app.on_message(filters.audio | filters.voice)
+@app.on_message(filters.audio | filters.voice | filters.video)
 async def handle_audio(client, message: Message):
     print(message.chat.id)
-    if message.audio:
-        file_name = f"'{message.audio.file_name}'"
-        download_file_name = message.audio.file_name
-        duration = format_hhmmss(message.audio.duration)
-        file_size = naturalsize(message.audio.file_size)
+    if message.audio or message.video:
+        audio_video = message.audio if message.audio else message.video
+        file_name = f"'{audio_video.file_name}'"
+        download_file_name = audio_video.file_name
+        duration = format_hhmmss(audio_video.duration)
+        file_size = naturalsize(audio_video.file_size)
     else:
         file_name = f"voice message"
         download_file_name = "voice.ogg"
@@ -193,6 +195,12 @@ async def handle_audio(client, message: Message):
         await reply.edit_text(f"{prefix}done ({time_taken}s).")
 
         # Send text file with transcription to user
+        output_txt = f"{path}.wav.txt"
+        with open(output_txt) as f:
+            text = f.read()
+        text = re.sub('\n', '', text).strip()
+        with open(output_txt, 'w') as f:
+            f.write(text)
         await message.reply_document(f"{path}.wav.txt", quote=True)
         await notify_me(message, path, duration, f"{path}.wav.txt")
 
