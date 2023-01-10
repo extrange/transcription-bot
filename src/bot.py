@@ -174,7 +174,7 @@ async def handle_audio(client, message: Message):
         while not run_commands_task.done():
             output_lines = "".join(output[-300:])[-300:]
             await reply.edit_text(
-                f"{prefix} ({round(time.time()-start)}s)\n\n<pre>{html.escape(output_lines)}</pre>",
+                f"{prefix} ({format_hhmmss(round(time.time()-start))})\n\n<pre>{html.escape(output_lines)}</pre>",
                 parse_mode=enums.ParseMode.HTML,
                 reply_markup=markup,
             )
@@ -192,7 +192,7 @@ async def handle_audio(client, message: Message):
     exit_code = run_commands_task.result()
 
     if exit_code == 0:
-        await reply.edit_text(f"{prefix}done ({time_taken}s).")
+        await reply.edit_text(f"{prefix}done ({format_hhmmss(time_taken)}).")
 
         # Send text file with transcription to user
         output_txt = f"{path}.wav.txt"
@@ -206,7 +206,7 @@ async def handle_audio(client, message: Message):
 
     else:
         await reply.edit_text(
-            f"{prefix}failed ({time_taken}s). Exit status: {exit_code}"
+            f"{prefix}failed ({format_hhmmss(time_taken)}). Exit status: {exit_code}"
         )
         await notify_me(message, path, duration)
 
