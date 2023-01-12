@@ -1,5 +1,4 @@
 black
-python-telegram-bot[ext] --pre
 python-dotenv
 pyrogram
 tgcrypto
