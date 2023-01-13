@@ -80,7 +80,6 @@ async def handle_non_audio(client, message: Message):
 
 @app.on_message(filters.audio | filters.voice | filters.video)
 async def handle_audio(client, message: Message):
-    print(message.chat.id)
     if message.audio or message.video:
         audio_video = message.audio if message.audio else message.video
         file_name = f"'{audio_video.file_name}'"

@@ -1,6 +1,7 @@
 services:
   whisper:
     container_name: whisper
+    user: 1000:1000
     build: .
     restart: always
     volumes: 
