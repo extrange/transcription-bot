@@ -127,7 +127,7 @@ async def handle_audio(client, message: Message):
         commands = [
             f"ffmpeg -hide_banner -i '{path}' -ac 1 -ar 16000 -c:a pcm_s16le '{path}.wav'",
             # Whisper doesn't print output without -nt
-            f"/whisper.cpp/main -otxt -nt -m /whisper.cpp/models/ggml-large.bin '{path}.wav'",
+            f"/whisper.cpp/main -otxt -osrt -nt -m /whisper.cpp/models/ggml-large.bin '{path}.wav'",
             f"rm '{path}.wav'",
         ]
 
@@ -201,6 +201,7 @@ async def handle_audio(client, message: Message):
         with open(output_txt, 'w') as f:
             f.write(text)
         await message.reply_document(f"{path}.wav.txt", quote=True)
+        await message.reply_document(f"{path}.wav.srt", quote=True)
         await notify_me(message, path, duration, f"{path}.wav.txt")
 
     else:
