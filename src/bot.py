@@ -78,9 +78,14 @@ async def handle_non_audio(client, message: Message):
     await message.reply_text(welcome_message)
 
 
-@app.on_message(filters.audio | filters.voice | filters.video)
+@app.on_message(filters.audio | filters.voice | filters.video | filters.document)
 async def handle_audio(client, message: Message):
-    if message.audio or message.video:
+    if message.document:
+        file_name = f"'{message.document.file_name}'" # file name in notification with quotes added
+        download_file_name = message.document.file_name
+        duration = 'unknown'
+        file_size = naturalsize(message.document.file_size)
+    elif message.audio or message.video:
         audio_video = message.audio if message.audio else message.video
         file_name = f"'{audio_video.file_name}'"
         download_file_name = audio_video.file_name
