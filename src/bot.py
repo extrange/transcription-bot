@@ -132,7 +132,7 @@ async def handle_audio(client, message: Message):
         commands = [
             f"ffmpeg -hide_banner -i '{path}' -ac 1 -ar 16000 -c:a pcm_s16le '{path}.wav'",
             # Whisper doesn't print output without -nt
-            f"/whisper.cpp/main -otxt -osrt -nt -m /whisper.cpp/models/ggml-large.bin '{path}.wav'",
+            f"/whisper.cpp/main --entropy-thold 2.6 -otxt -osrt -nt -m /whisper.cpp/models/ggml-large.bin '{path}.wav'",
             f"rm '{path}.wav'",
         ]
 
