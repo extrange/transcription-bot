@@ -14,4 +14,4 @@ COPY models/ggml-large.bin models/ggml-large.bin
 # Install python dependencies
 COPY requirements.txt /tmp/requirements.txt
 
-RUN pip install -r /tmp/requirements.txt && rm /tmp/requirements.txt
+RUN pip install --break-system-packages -r /tmp/requirements.txt && rm /tmp/requirements.txt
