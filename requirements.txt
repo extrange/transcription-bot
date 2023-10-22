@@ -1,6 +1,7 @@
-black
-python-dotenv
+faster-whisper
+humanize
 pyrogram
+pysubs2
+python-dotenv
 tgcrypto
 uvloop
-humanize

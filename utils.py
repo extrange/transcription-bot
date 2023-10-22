@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 
-def format_hhmmss(s: int):
+def format_hhmmss(s: float):
     delta = timedelta(seconds=s)
     hours = delta.days * 24 + delta.seconds // 3600
     minutes = (delta.seconds % 3600) // 60

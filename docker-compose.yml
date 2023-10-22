@@ -5,5 +5,6 @@ services:
     build: .
     restart: always
     volumes: 
-      - ./src:/src
-    command: python3 /src/bot.py
+      - .:/workspace
+      - .cache:/home/vscode/.cache # Cache models
+    command: python3 /workspace/bot.py

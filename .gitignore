@@ -1,1 +1,6 @@
 models/
+__pycache__
+.env
+/*.session
+/*.session-journal
+/.cache/
