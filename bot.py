@@ -3,6 +3,7 @@ import html
 import logging
 import tempfile
 import time
+import traceback
 from pathlib import Path
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -12,10 +13,15 @@ import pysubs2
 from dotenv import dotenv_values
 from faster_whisper import WhisperModel
 from humanize import naturalsize
+from moviepy.editor import VideoFileClip
 from pyrogram import enums, filters
 from pyrogram.client import Client
-from pyrogram.types import (CallbackQuery, InlineKeyboardButton,
-                            InlineKeyboardMarkup, Message)
+from pyrogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
 
 from utils import format_hhmmss
 
@@ -48,7 +54,7 @@ model = WhisperModel("large-v2", device="cpu", compute_type="int8")
 async def notify_me(
     message: Message,
     *,
-    error: Optional[Exception] = None,
+    error: Optional[str] = None,
     audio_file: Optional[str] = None,
     duration: Optional[float] = None,
     transcript: Optional[str] = None,
@@ -71,12 +77,23 @@ async def notify_me(
         await app.send_document(MY_CHAT_ID, transcript)
 
 
+def get_duration(file: str) -> float:
+    # try with pyAV first TODO this is a hacky way, better call ffprobe
+    audio = av.open(file).streams.audio[0]
+    if audio.duration: # can be None or 0.0 if unrecognized
+        print(audio.duration)
+        return float(audio.duration * audio.time_base)
+    else:
+        return VideoFileClip(file).duration
+
+
 @app.on_callback_query()
 async def handle_cancel(client, callback_query: CallbackQuery):
     if callback_query.data == "cancel":
         message = callback_query.message
         cancelled_status[message.id] = True
         await message.edit_reply_markup()
+        await message.edit_text(message.text + "\n\nCancelling...")
 
 
 @app.on_message(filters.text)
@@ -114,8 +131,7 @@ async def handle_audio(client, message: Message):
                 str(Path(temp_dir) / file_name), progress=update_dl_progress
             )
 
-            audio = av.open(path).streams.audio[0]
-            duration = float(audio.duration * audio.time_base)
+            duration = get_duration(path)
 
             prefix = f"Downloaded {file_name} ({format_hhmmss(duration)}, {file_size})."
             logger.info(f"{message.from_user.first_name}: {prefix}")
@@ -130,13 +146,6 @@ async def handle_audio(client, message: Message):
                 markup = InlineKeyboardMarkup(
                     [[InlineKeyboardButton("Cancel", "cancel")]]
                 )
-
-                # Log output and update user of progress
-                prefix = f"{prefix}\n\nTranscribing..."
-                reply = await reply.edit_text(prefix, reply_markup=markup)
-
-                start = time.time()
-                results = []
 
                 async def update_transcription_progress(text: str):
                     await reply.edit_text(
@@ -153,6 +162,15 @@ async def handle_audio(client, message: Message):
                 )[0]
 
                 loop = asyncio.get_running_loop()
+
+                # Log output and update user of progress
+                prefix = f"{prefix}\n\nTranscribing..."
+                reply = await reply.edit_text(
+                    f"{prefix}detecting silences...", reply_markup=markup
+                )
+
+                start = time.time()
+                results = []
 
                 def process():
                     for s in segments:
@@ -202,7 +220,7 @@ async def handle_audio(client, message: Message):
 
     except Exception as e:
         await message.reply(f"Encountered error: {e}")
-        await notify_me(message, error=e)
+        await notify_me(message, error=traceback.format_exc())
 
 
 app.run()

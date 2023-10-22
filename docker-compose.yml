@@ -3,7 +3,7 @@ services:
     container_name: whisper
     user: 1000:1000
     build: .
-    restart: always
+    restart: unless-stopped
     volumes: 
       - .:/workspace
       - .cache:/home/vscode/.cache # Cache models
