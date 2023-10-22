@@ -154,6 +154,12 @@ async def handle_audio(client, message: Message):
                         reply_markup=markup,
                     )
 
+                # Log output and update user of progress
+                prefix = f"{prefix}\n\nTranscribing..."
+                reply = await reply.edit_text(
+                    f"{prefix}detecting silences... (may take a while)", reply_markup=markup
+                )
+
                 # Start transcribing with faster-whisper
                 # Use VAD for speedups
                 # Beam size 1 seems to improve performance, compared to default of 5
@@ -162,12 +168,6 @@ async def handle_audio(client, message: Message):
                 )[0]
 
                 loop = asyncio.get_running_loop()
-
-                # Log output and update user of progress
-                prefix = f"{prefix}\n\nTranscribing..."
-                reply = await reply.edit_text(
-                    f"{prefix}detecting silences...", reply_markup=markup
-                )
 
                 start = time.time()
                 results = []
