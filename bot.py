@@ -5,15 +5,13 @@ import tempfile
 import time
 import traceback
 from pathlib import Path
-from typing import Optional
 from zoneinfo import ZoneInfo
 
-import av
 import pysubs2
 from dotenv import dotenv_values
 from faster_whisper import WhisperModel
 from humanize import naturalsize
-from moviepy.editor import VideoFileClip
+import ffmpeg
 from pyrogram import enums, filters
 from pyrogram.client import Client
 from pyrogram.types import (
@@ -51,40 +49,8 @@ lock = asyncio.Lock()
 model = WhisperModel("large-v2", device="cpu", compute_type="int8")
 
 
-async def notify_me(
-    message: Message,
-    *,
-    error: Optional[str] = None,
-    audio_file: Optional[str] = None,
-    duration: Optional[float] = None,
-    transcript: Optional[str] = None,
-):
-    if message.chat.id == MY_CHAT_ID:
-        return
-
-    if error:
-        await app.send_message(
-            MY_CHAT_ID, f"Received error from {message.from_user.first_name}: {error}"
-        )
-        return
-
-    if audio_file and duration and transcript:
-        await app.send_audio(
-            MY_CHAT_ID,
-            audio_file,
-            caption=f"Received file {audio_file} ({format_hhmmss(duration)}) from {message.from_user.first_name}.",
-        )
-        await app.send_document(MY_CHAT_ID, transcript)
-
-
-def get_duration(file: str) -> float:
-    # try with pyAV first TODO this is a hacky way, better call ffprobe
-    audio = av.open(file).streams.audio[0]
-    if audio.duration: # can be None or 0.0 if unrecognized
-        print(audio.duration)
-        return float(audio.duration * audio.time_base)
-    else:
-        return VideoFileClip(file).duration
+async def is_other_user(message: Message) -> bool:
+    return message.chat.id != MY_CHAT_ID
 
 
 @app.on_callback_query()
@@ -131,11 +97,21 @@ async def handle_audio(client, message: Message):
                 str(Path(temp_dir) / file_name), progress=update_dl_progress
             )
 
-            duration = get_duration(path)
+            duration_s = float(ffmpeg.probe(path)["format"]["duration"])
 
-            prefix = f"Downloaded {file_name} ({format_hhmmss(duration)}, {file_size})."
+            prefix = (
+                f"Downloaded {file_name} ({format_hhmmss(duration_s)}, {file_size})."
+            )
             logger.info(f"{message.from_user.first_name}: {prefix}")
             await reply.edit_text(f"{prefix}")
+
+            # Notify me
+            if is_other_user(message):
+                await app.send_audio(
+                    MY_CHAT_ID,
+                    path,
+                    caption=f"Received file {file_name} ({format_hhmmss(duration_s)}) from {message.from_user.first_name}.",
+                )
 
             if lock.locked():
                 prefix = f"{prefix}\n\nWaiting in queue..."
@@ -157,7 +133,8 @@ async def handle_audio(client, message: Message):
                 # Log output and update user of progress
                 prefix = f"{prefix}\n\nTranscribing..."
                 reply = await reply.edit_text(
-                    f"{prefix}detecting silences... (may take a while)", reply_markup=markup
+                    f"{prefix}detecting silences... (may take a while)",
+                    reply_markup=markup,
                 )
 
                 # Start transcribing with faster-whisper
@@ -178,7 +155,7 @@ async def handle_audio(client, message: Message):
                             break
                         segment_dict = {"start": s.start, "end": s.end, "text": s.text}
                         elapsed_time = time.time() - start
-                        frac_done = s.end / duration
+                        frac_done = s.end / duration_s
                         speed = frac_done / elapsed_time
                         est_time_left = (1 - frac_done) / speed
                         update_string = f"{prefix} {format_hhmmss(elapsed_time)}<{format_hhmmss(est_time_left)}\n\n<pre>{html.escape(s.text)}</pre>"
@@ -211,16 +188,22 @@ async def handle_audio(client, message: Message):
                 await message.reply_document(str(srt_file), quote=True)
 
                 # Notify me
-                await notify_me(
-                    message,
-                    audio_file=path,
-                    duration=duration,
-                    transcript=f"{path}.wav.txt",
-                )
+                if is_other_user(message):
+                    await app.send_document(MY_CHAT_ID, str(txt_file))
 
     except Exception as e:
-        await message.reply(f"Encountered error: {e}")
-        await notify_me(message, error=traceback.format_exc())
+        await message.reply(
+            f"Encountered error:\n\n<pre>{e}</pre>", parse_mode=enums.ParseMode.HTML
+        )
+
+        if is_other_user(message):
+            await app.send_message(
+                MY_CHAT_ID,
+                f"Received error from {message.from_user.first_name}:\n"
+                f"\n"
+                f"<pre>{traceback.format_exc()}</pre>",
+                parse_mode=enums.ParseMode.HTML,
+            )
 
 
 app.run()
