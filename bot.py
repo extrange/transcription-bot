@@ -49,7 +49,7 @@ lock = asyncio.Lock()
 model = WhisperModel("large-v2", device="cpu", compute_type="int8")
 
 
-async def is_other_user(message: Message) -> bool:
+def is_other_user(message: Message) -> bool:
     return message.chat.id != MY_CHAT_ID
 
 
