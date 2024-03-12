@@ -1,10 +1,10 @@
 services:
   transcription-bot:
     container_name: transcription-bot
-    user: 1000:1000
     build: .
     restart: unless-stopped
     volumes: 
       - .:/app
+      # The container will appear to 'hang' initially as it downloads model files.
       - .cache:/home/vscode/.cache # Cache models
     command: python3 /app/bot.py

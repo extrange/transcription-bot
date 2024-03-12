@@ -32,7 +32,9 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-client = TelegramClient("my_account", API_ID, API_HASH)
+client = TelegramClient(
+    str(Path(__file__).parent / "my_account.session"), API_ID, API_HASH
+)
 
 welcome_message = """Send me any audio/video file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 1min per minute of audio."""
 
@@ -184,7 +186,7 @@ async def handle_audio(message: Message):
                 await message.reply(file=srt_file.open("rb"))
 
                 # Notify me
-                log_msg = f"Completed transcription for {sender_name}"
+                log_msg = f"Completed transcription for {sender_name}: {reply_txt}"
                 logger.info(log_msg)
                 if is_other_user(message):
                     await client.send_message(
