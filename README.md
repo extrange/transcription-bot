@@ -1,8 +1,6 @@
-# Whisper Telegram Bot
+# Transcription Bot
 
 Telegram bot which transcribes audio/voice messages/videos into high quality text, using [`faster-whisper`] on CPU, at about 3x realtime speed.
-
-I use the [Pyrogram][pyrogram] Telegram Client, which interacts directly with the main Telegram API ([MTProto][mtproto]) for minimal overhead.
 
 Benchmark for a 464s file (CPU only):
 
@@ -17,7 +15,7 @@ Benchmark for a 464s file (CPU only):
 Clone this repo:
 
 ```bash
-git clone https://github.com/extrange/whisper-telegram.git
+git clone https://github.com/extrange/transcription-bot.git
 ```
 
 [Create a Telegram bot][botfather] and obtain the API key (it looks like `110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw`)
@@ -40,7 +38,5 @@ Login credentials will be stored in a `<name>.session` file for future runs.
 
 
 [`faster-whisper`]: https://github.com/guillaumekln/faster-whisper
-[pyrogram]: https://docs.pyrogram.org/
-[mtproto]: https://docs.pyrogram.org/topics/mtproto-vs-botapi
 [botfather]: https://core.telegram.org/bots/features#creating-a-new-bot
 [rawdatabot]: https://t.me/RawDataBot

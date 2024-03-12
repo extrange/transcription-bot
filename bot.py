@@ -1,4 +1,6 @@
 import asyncio
+
+from typing import cast
 import html
 import logging
 import tempfile
@@ -11,20 +13,17 @@ import pysubs2
 from dotenv import dotenv_values
 from faster_whisper import WhisperModel
 from humanize import naturalsize
-import ffmpeg
-from pyrogram import enums, filters
-from pyrogram.client import Client
-from pyrogram.types import (
-    CallbackQuery,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    Message,
-)
+from telethon import TelegramClient, events
+from telethon.custom import Message, Button
+import uvloop
+from telethon.tl.types import ReplyInlineMarkup
 
-from utils import format_hhmmss
+from utils import format_hhmmss, throttle
 
-MY_CHAT_ID = int(dotenv_values(Path(__file__).parent / ".env")["MY_CHAT_ID"] or "")
-TZ = ZoneInfo("Asia/Singapore")
+env_values = dotenv_values(Path(__file__).parent / ".env")
+MY_CHAT_ID = int(env_values["MY_CHAT_ID"] or "")
+API_HASH = env_values["API_HASH"] or ""
+API_ID = int(env_values["API_ID"] or "")
 
 # Enable logging
 logging.basicConfig(
@@ -33,10 +32,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-# Authorization has already been done and saved in my_account.session
-# Authorized for bot @nicktranscriptionbot
-
-app = Client("my_account")
+client = TelegramClient("my_account", API_ID, API_HASH)
 
 welcome_message = """Send me any audio/video file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 1min per minute of audio."""
 
@@ -50,98 +46,95 @@ model = WhisperModel("large-v2", device="cpu", compute_type="int8")
 
 
 def is_other_user(message: Message) -> bool:
-    return message.chat.id != MY_CHAT_ID
+    return message.chat_id != MY_CHAT_ID
 
 
-@app.on_callback_query()
-async def handle_cancel(client, callback_query: CallbackQuery):
-    if callback_query.data == "cancel":
-        message = callback_query.message
-        cancelled_status[message.id] = True
-        await message.edit_reply_markup()
-        await message.edit_text(message.text + "\n\nCancelling...")
+@client.on(events.CallbackQuery(data="cancel"))
+async def handle_cancel(event: events.CallbackQuery.Event):
+    message = cast(Message, await event.get_message())
+    cancelled_status[event.chat_id] = True
+    await message.edit(text=cast(str, message.text) + "\n\nCancelling...", buttons=None)
+    await event.answer()
 
 
-@app.on_message(filters.text)
-async def handle_non_audio(client, message: Message):
-    await message.reply_text(welcome_message)
+@client.on(events.NewMessage(incoming=True))
+# filters.audio | filters.voice | filters.video | filters.document)
+async def handle_audio(message: Message):
+    if not (message.audio or message.video or message.voice):
+        await message.reply(welcome_message)
+        return
 
+    if not (message.file and message.file.size and message.file.duration):
+        raise Exception("Failed to parse file!")
 
-@app.on_message(filters.audio | filters.voice | filters.video | filters.document)
-async def handle_audio(client, message: Message):
     try:
-        if message.document:
-            file_name = f"'{message.document.file_name}'"  # file name in notification with quotes added
-            file_size = naturalsize(message.document.file_size)
-        elif message.audio or message.video:
-            audio_video = message.audio if message.audio else message.video
-            file_name = f"'{audio_video.file_name}'"
-            file_size = naturalsize(audio_video.file_size)
-        else:
-            file_name = f"voice message"
-            file_size = naturalsize(message.voice.file_size)
+        # file name in notification with quotes added
+        file_name = f"'{message.file.name}'" if message.file.name else "voice message"
+        file_size = naturalsize(message.file.size)
+        duration_s = message.file.duration
+        duration = format_hhmmss(duration_s)
 
-        prefix = f"Downloading {file_name}..."
-        reply = await message.reply_text(prefix, quote=True, disable_notification=True)
+        prefix = f"Downloading {file_name} ({duration}, {file_size})..."
+        reply = cast(Message, await message.reply(prefix, silent=True))
 
-        async def update_dl_progress(current, total):
+        @throttle
+        async def update_dl_progress(received_bytes, total):
             """Update telegram with download progress"""
-            new_text = f"{prefix}\n{naturalsize(current)}/{naturalsize(total)} ({float(current)/total*100:.1f}%)"
+            new_text = f"{prefix}\n{naturalsize(received_bytes)}/{naturalsize(total)} ({float(received_bytes)/total*100:.1f}%)"
             if reply.text == new_text:
                 return
-            await reply.edit_text(new_text)
+            await reply.edit(new_text)
 
         # Download audio file
         with tempfile.TemporaryDirectory() as temp_dir:
-            path = await message.download(
-                str(Path(temp_dir) / file_name), progress=update_dl_progress
+            dl_path = await message.download_media(
+                file=Path(temp_dir) / file_name, progress_callback=update_dl_progress
             )
+            if dl_path is None:
+                raise Exception("Failed to download file!")
 
-            duration_s = float(ffmpeg.probe(path)["format"]["duration"])
+            prefix = f"Downloaded {file_name} ({duration}, {file_size})."
+            sender = message.sender
+            sender_name = sender.first_name if sender else "Unknown sender"
+            await reply.edit(f"{prefix} Preparing for transcription...")
 
-            prefix = (
-                f"Downloaded {file_name} ({format_hhmmss(duration_s)}, {file_size})."
-            )
-            logger.info(f"{message.from_user.first_name}: {prefix}")
-            await reply.edit_text(f"{prefix}")
-
-            # Notify me
+            # Log file received
+            log_msg = f"Received file from '{sender_name}': {prefix}"
+            logger.info(log_msg)
             if is_other_user(message):
-                await app.send_audio(
+                await client.send_message(
                     MY_CHAT_ID,
-                    path,
-                    caption=f"Received file {file_name} ({format_hhmmss(duration_s)}) from {message.from_user.first_name}.",
+                    log_msg,
+                    file=Path(dl_path).open("rb"),
+                    silent=True,
                 )
 
             if lock.locked():
                 prefix = f"{prefix}\n\nWaiting in queue..."
-                await reply.edit_text(prefix)
+                await reply.edit(prefix)
 
             async with lock:
-                cancelled_status[reply.id] = False
-                markup = InlineKeyboardMarkup(
-                    [[InlineKeyboardButton("Cancel", "cancel")]]
-                )
+                cancelled_status[message.chat_id] = False
 
+                # TODO throttle this async function
                 async def update_transcription_progress(text: str):
-                    await reply.edit_text(
-                        text,
-                        parse_mode=enums.ParseMode.HTML,
-                        reply_markup=markup,
+                    await reply.edit(
+                        text, buttons=[Button.inline("cancel")], parse_mode="html"
                     )
 
-                # Log output and update user of progress
+                # Update user of progress
                 prefix = f"{prefix}\n\nTranscribing..."
-                reply = await reply.edit_text(
-                    f"{prefix}detecting silences... (may take a while)",
-                    reply_markup=markup,
+                await reply.edit(
+                    f"{prefix}detecting silence... (may take a while)",
+                    buttons=[Button.inline("cancel")],
+                    parse_mode="html",
                 )
 
                 # Start transcribing with faster-whisper
                 # Use VAD for speedups
                 # Beam size 1 seems to improve performance, compared to default of 5
                 segments = model.transcribe(
-                    path, beam_size=1, language="en", vad_filter=True
+                    dl_path, beam_size=1, language="en", vad_filter=True
                 )[0]
 
                 loop = asyncio.get_running_loop()
@@ -151,7 +144,7 @@ async def handle_audio(client, message: Message):
 
                 def process():
                     for s in segments:
-                        if cancelled_status[reply.id]:
+                        if cancelled_status[message.chat_id]:
                             break
                         segment_dict = {"start": s.start, "end": s.end, "text": s.text}
                         elapsed_time = time.time() - start
@@ -167,43 +160,54 @@ async def handle_audio(client, message: Message):
                 while not future.done():
                     await asyncio.sleep(1)
 
-            time_taken = round(time.time() - start)
-
-            # Save to txt
-            txt_file = Path(temp_dir) / f"{file_name}.txt"
-            with txt_file.open("w") as f:
-                f.write("".join([s["text"] for s in results]))
-
-            srt_file = Path(temp_dir) / f"{file_name}.srt"
-            with srt_file.open("w") as f:
-                pysubs2.load_from_whisper(results).save(str(srt_file))
-
-            if cancelled_status[reply.id]:
-                await reply.edit_text(f"{prefix}cancelled.")
+            if cancelled_status[message.chat_id]:
+                await reply.edit(f"{prefix}cancelled.")
+                log_msg = f"{sender_name} cancelled transcription."
+                await client.send_message(MY_CHAT_ID, log_msg, silent=True)
             else:
-                await reply.edit_text(f"{prefix}done in {format_hhmmss(time_taken)}.")
+                time_taken = round(time.time() - start)
+
+                # Save to txt
+                txt_file = Path(temp_dir) / f"{file_name}.txt"
+                with txt_file.open("w") as f:
+                    f.write("".join([s["text"] for s in results]))
+
+                srt_file = Path(temp_dir) / f"{file_name}.srt"
+                with srt_file.open("w") as f:
+                    pysubs2.load_from_whisper(results).save(str(srt_file))
+
+                reply_txt = f"{prefix}done in {format_hhmmss(time_taken)}."
+                await reply.edit(reply_txt)
 
                 # Send text file with transcription to user
-                await message.reply_document(str(txt_file), quote=True)
-                await message.reply_document(str(srt_file), quote=True)
+                await message.reply(file=txt_file.open("rb"))
+                await message.reply(file=srt_file.open("rb"))
 
                 # Notify me
+                log_msg = f"Completed transcription for {sender_name}"
+                logger.info(log_msg)
                 if is_other_user(message):
-                    await app.send_document(MY_CHAT_ID, str(txt_file))
+                    await client.send_message(
+                        MY_CHAT_ID, log_msg, file=txt_file.open("rb"), silent=True
+                    )
 
     except Exception as e:
-        await message.reply(
-            f"Encountered error:\n\n<pre>{e}</pre>", parse_mode=enums.ParseMode.HTML
+
+        log_msg = (
+            f"Received error from {sender_name}:\n\n<pre>{traceback.format_exc()}</pre>"
         )
-
+        logger.error(log_msg)
         if is_other_user(message):
-            await app.send_message(
-                MY_CHAT_ID,
-                f"Received error from {message.from_user.first_name}:\n"
-                f"\n"
-                f"<pre>{traceback.format_exc()}</pre>",
-                parse_mode=enums.ParseMode.HTML,
-            )
+            await client.send_message(MY_CHAT_ID, log_msg, parse_mode="html")
+
+        await message.reply(f"Encountered error:\n\n<pre>{e}</pre>", parse_mode="html")
 
 
-app.run()
+async def main():
+    await client.start()  # type: ignore
+    # TODO: Check internet status and attempt reconnection with exponential backoff
+    await client.run_until_disconnected()  # type: ignore
+
+
+if __name__ == "__main__":
+    uvloop.run(main())
