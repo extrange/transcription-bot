@@ -36,7 +36,7 @@ client = TelegramClient(
     str(Path(__file__).parent / "my_account.session"), API_ID, API_HASH
 )
 
-welcome_message = """Send me any audio/video file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 1min per minute of audio."""
+welcome_message = """Send me any audio/video file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 3x realtime, excluding silences."""
 
 cancelled_status = {}
 
