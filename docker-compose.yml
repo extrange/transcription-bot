@@ -1,10 +1,10 @@
 services:
-  whisper:
-    container_name: whisper
+  transcription-bot:
+    container_name: transcription-bot
     user: 1000:1000
     build: .
     restart: unless-stopped
     volumes: 
-      - .:/workspace
+      - .:/app
       - .cache:/home/vscode/.cache # Cache models
-    command: python3 /workspace/bot.py
+    command: python3 /app/bot.py

@@ -1,8 +1,9 @@
-faster-whisper
-humanize
-pyrogram
-pysubs2
-python-dotenv
-tgcrypto
-uvloop
-ffmpeg-python
+faster-whisper==1.0.1
+ffmpeg-python==0.2.0
+humanize==4.9.0
+pur==7.3.1
+pyrogram==2.0.106
+pysubs2==1.6.1
+python-dotenv==1.0.1
+tgcrypto==1.2.5
+uvloop==0.19.0
