@@ -4,3 +4,5 @@ __pycache__
 /*.session
 /*.session-journal
 /.cache/
+.pytest_cache
+.coverage

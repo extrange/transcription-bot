@@ -1,26 +1,23 @@
 import asyncio
-
-from typing import cast
 import html
 import logging
 import tempfile
 import time
 import traceback
 from pathlib import Path
-from zoneinfo import ZoneInfo
+from typing import cast
 
 import pysubs2
+import uvloop
 from dotenv import dotenv_values
 from faster_whisper import WhisperModel
 from humanize import naturalsize
 from telethon import TelegramClient, events
-from telethon.custom import Message, Button
-import uvloop
-from telethon.tl.types import ReplyInlineMarkup
+from telethon.custom import Button, Message
 
 from utils import format_hhmmss, throttle
 
-env_values = dotenv_values(Path(__file__).parent / ".env")
+env_values = dotenv_values(Path(__file__).parent.parent / ".env")
 MY_CHAT_ID = int(env_values["MY_CHAT_ID"] or "")
 API_HASH = env_values["API_HASH"] or ""
 API_ID = int(env_values["API_ID"] or "")
@@ -33,7 +30,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 client = TelegramClient(
-    str(Path(__file__).parent / "my_account.session"), API_ID, API_HASH
+    str(Path(__file__).parent.parent / "my_account.session"), API_ID, API_HASH
 )
 
 welcome_message = """Send me any audio/video file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 3x realtime, excluding silences."""

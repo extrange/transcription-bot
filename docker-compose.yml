@@ -7,4 +7,4 @@ services:
       - .:/app
       # The container will appear to 'hang' initially as it downloads model files.
       - .cache:/home/vscode/.cache # Cache models
-    command: python3 /app/bot.py
+    command: python3 /app/src/bot.py
