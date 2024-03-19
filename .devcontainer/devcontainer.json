@@ -12,7 +12,9 @@
 			"extensions": [
 				"ms-python.python",
 				"ms-python.isort",
-				"ms-python.black-formatter"
+				"ms-python.black-formatter",
+				"tamasfe.even-better-toml",
+				"github.vscode-github-actions"
 			]
 		}
 	}

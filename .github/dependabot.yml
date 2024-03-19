@@ -3,12 +3,14 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: monthly
 
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: monthly
+
+    # Group all package updates into one PR
     groups:
       main:
         patterns:

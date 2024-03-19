@@ -5,12 +5,9 @@ services:
     restart: unless-stopped
     volumes:
       - .:/app
-      # The container will appear to 'hang' initially as it downloads model files.
       - .cache:/home/vscode/.cache # Cache models
-    # Why do I have to install requirements separately, and then install this project
-    command: pip install -e .python3 /app/src/bot.py
-    environment:
-      PYTHONPATH: src
+    # https://stackoverflow.com/questions/61333367/do-docker-composes-two-command-forms-behave-differently
+    command: sh -c "python3 -m pdm sync && python3 -m pdm run start"
     env_file:
       - path: .env
         required: false # Github actions uses secrets directly

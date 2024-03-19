@@ -1,0 +1,34 @@
+[project]
+name = "transcriptionbot"
+version = "0.1.0"
+description = "Whisper-based Telegram transcription bot"
+authors = [
+    { name = "extrange", email = "29305375+extrange@users.noreply.github.com" },
+]
+dependencies = [
+    "cryptg>=0.4.0",
+    "faster-whisper>=1.0.1",
+    "hachoir>=3.3.0",
+    "humanize>=4.9.0",
+    "pillow>=10.2.0",
+    "pysubs2>=1.6.1",
+    "python-dotenv>=1.0.1",
+    "telethon>=1.34.0",
+    "uvloop>=0.19.0",
+]
+requires-python = "==3.11.*"
+readme = "README.md"
+license = { text = "MIT" }
+
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "pytest>=8.1.1",
+    "pytest-asyncio>=0.23.5.post1",
+    "pytest-cov>=4.1.0",
+    "coverage>=7.4.4",
+]
+
+[tool.pdm.scripts]
+start = "python -m transcriptionbot.main"
+test = "python pytest"

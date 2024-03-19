@@ -1,7 +1,7 @@
-FROM mcr.microsoft.com/devcontainers/python:3.11-bullseye
+FROM mcr.microsoft.com/devcontainers/python:1-3.11-bullseye
 
-ENV TZ="Asia/Singapore"
+USER vscode
 
+RUN pip install --user pdm
 
-COPY requirements.txt /tmp/requirements.txt
-RUN pip install -r /tmp/requirements.txt && rm /tmp/requirements.txt
+WORKDIR /app
