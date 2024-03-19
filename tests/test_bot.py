@@ -10,7 +10,6 @@ pytestmark = pytest.mark.asyncio(scope="module")
 
 loop: asyncio.AbstractEventLoop
 
-
 async def test_event_loop_policy_is_uvloop():
     global loop
     loop = asyncio.get_running_loop()

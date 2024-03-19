@@ -9,6 +9,8 @@ services:
       - .cache:/home/vscode/.cache # Cache models
     # Why do I have to install requirements separately, and then install this project
     command: pip install -e .python3 /app/src/bot.py
+    environment:
+      PYTHONPATH: src
     env_file:
       - path: .env
         required: false # Github actions uses secrets directly
