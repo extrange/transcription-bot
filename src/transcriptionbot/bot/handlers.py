@@ -8,63 +8,50 @@ from pathlib import Path
 from typing import cast
 
 import pysubs2
-import uvloop
-from dotenv import dotenv_values
-from faster_whisper import WhisperModel
 from humanize import naturalsize
 from telethon import TelegramClient, events
 from telethon.custom import Button, Message
 
-from utils import format_hhmmss, throttle
+from .credentials import credentials
+from .model import model
+from .utils import format_hhmmss, throttle
 
-env_values = dotenv_values(Path(__file__).parent.parent / ".env")
-MY_CHAT_ID = int(env_values["MY_CHAT_ID"] or "")
-API_HASH = env_values["API_HASH"] or ""
-API_ID = int(env_values["API_ID"] or "")
+__logger = logging.getLogger(__name__)
 
-# Enable logging
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-)
+__welcome_message = """Send me any audio/video file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 3x realtime, excluding silences."""
 
-logger = logging.getLogger(__name__)
-
-client = TelegramClient(
-    str(Path(__file__).parent.parent / "my_account.session"), API_ID, API_HASH
-)
-
-welcome_message = """Send me any audio/video file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 3x realtime, excluding silences."""
-
-cancelled_status = {}
+# Whether we should cancel the job on the next process tick
+__cancelled_status = {}
 
 # Limit to one transcribing task at a time
-lock = asyncio.Lock()
-
-# Load model
-model = WhisperModel("large-v2", device="cpu", compute_type="int8")
+__lock = asyncio.Lock()
 
 
-def is_other_user(message: Message) -> bool:
-    return message.chat_id != MY_CHAT_ID
+def __is_other_user(message: Message) -> bool:
+    return message.chat_id != credentials.MY_CHAT_ID
 
 
-@client.on(events.CallbackQuery(data="cancel"))
-async def handle_cancel(event: events.CallbackQuery.Event):
+def register_handlers(client: TelegramClient):
+    client.add_event_handler(__handle_cancel, events.CallbackQuery(data="cancel"))
+    client.add_event_handler(__handle_audio, events.NewMessage(incoming=True))
+
+
+async def __handle_cancel(event: events.CallbackQuery.Event):
     message = cast(Message, await event.get_message())
-    cancelled_status[event.chat_id] = True
+    __cancelled_status[event.chat_id] = True
     await message.edit(text=cast(str, message.text) + "\n\nCancelling...", buttons=None)
     await event.answer()
 
 
-@client.on(events.NewMessage(incoming=True))
-# filters.audio | filters.voice | filters.video | filters.document)
-async def handle_audio(message: Message):
+async def __handle_audio(message: Message):
     if not (message.audio or message.video or message.voice):
-        await message.reply(welcome_message)
+        await message.reply(__welcome_message)
         return
 
     if not (message.file and message.file.size and message.file.duration):
         raise Exception("Failed to parse file!")
+
+    client = cast(TelegramClient, message.client)
 
     try:
         # file name in notification with quotes added
@@ -99,21 +86,21 @@ async def handle_audio(message: Message):
 
             # Log file received
             log_msg = f"Received file from '{sender_name}': {prefix}"
-            logger.info(log_msg)
-            if is_other_user(message):
+            __logger.info(log_msg)
+            if __is_other_user(message):
                 await client.send_message(
-                    MY_CHAT_ID,
+                    credentials.MY_CHAT_ID,
                     log_msg,
                     file=Path(dl_path).open("rb"),
                     silent=True,
                 )
 
-            if lock.locked():
+            if __lock.locked():
                 prefix = f"{prefix}\n\nWaiting in queue..."
                 await reply.edit(prefix)
 
-            async with lock:
-                cancelled_status[message.chat_id] = False
+            async with __lock:
+                __cancelled_status[message.chat_id] = False
 
                 # TODO throttle this async function
                 async def update_transcription_progress(text: str):
@@ -143,7 +130,7 @@ async def handle_audio(message: Message):
 
                 def process():
                     for s in segments:
-                        if cancelled_status[message.chat_id]:
+                        if __cancelled_status[message.chat_id]:
                             break
                         segment_dict = {"start": s.start, "end": s.end, "text": s.text}
                         elapsed_time = time.time() - start
@@ -159,10 +146,10 @@ async def handle_audio(message: Message):
                 while not future.done():
                     await asyncio.sleep(1)
 
-            if cancelled_status[message.chat_id]:
+            if __cancelled_status[message.chat_id]:
                 await reply.edit(f"{prefix}cancelled.")
                 log_msg = f"{sender_name} cancelled transcription."
-                await client.send_message(MY_CHAT_ID, log_msg, silent=True)
+                await client.send_message(credentials.MY_CHAT_ID, log_msg, silent=True)
             else:
                 time_taken = round(time.time() - start)
 
@@ -184,10 +171,13 @@ async def handle_audio(message: Message):
 
                 # Notify me
                 log_msg = f"Completed transcription for {sender_name}: {reply_txt}"
-                logger.info(log_msg)
-                if is_other_user(message):
+                __logger.info(log_msg)
+                if __is_other_user(message):
                     await client.send_message(
-                        MY_CHAT_ID, log_msg, file=txt_file.open("rb"), silent=True
+                        credentials.MY_CHAT_ID,
+                        log_msg,
+                        file=txt_file.open("rb"),
+                        silent=True,
                     )
 
     except Exception as e:
@@ -195,18 +185,10 @@ async def handle_audio(message: Message):
         log_msg = (
             f"Received error from {sender_name}:\n\n<pre>{traceback.format_exc()}</pre>"
         )
-        logger.error(log_msg)
-        if is_other_user(message):
-            await client.send_message(MY_CHAT_ID, log_msg, parse_mode="html")
+        __logger.error(log_msg)
+        if __is_other_user(message):
+            await client.send_message(
+                credentials.MY_CHAT_ID, log_msg, parse_mode="html"
+            )
 
         await message.reply(f"Encountered error:\n\n<pre>{e}</pre>", parse_mode="html")
-
-
-async def main():
-    await client.start()  # type: ignore
-    # TODO: Check internet status and attempt reconnection with exponential backoff
-    await client.run_until_disconnected()  # type: ignore
-
-
-if __name__ == "__main__":
-    uvloop.run(main())

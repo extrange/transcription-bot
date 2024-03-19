@@ -3,10 +3,10 @@
 {
 	"name": "Existing Dockerfile",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"build": {
-		"dockerfile": "../Dockerfile",
-		"context": ".."
-	},
+	"dockerComposeFile": "../compose.yml",
+	"service": "transcription-bot",
+	"overrideCommand": true,
+	"workspaceFolder": "/app",
 	"customizations": {
 		"vscode": {
 			"extensions": [
