@@ -15,6 +15,7 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "telethon>=1.34.0",
     "uvloop>=0.19.0",
+    "ffmpeg-python>=0.2.0",
 ]
 requires-python = "==3.11.*"
 readme = "README.md"
@@ -31,4 +32,4 @@ dev = [
 
 [tool.pdm.scripts]
 start = "python -m transcriptionbot.main"
-test = "python pytest"
+test = "pytest"

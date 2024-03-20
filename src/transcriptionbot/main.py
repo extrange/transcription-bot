@@ -12,14 +12,14 @@ logging.basicConfig(
 from pathlib import Path
 
 import uvloop
-from transcriptionbot.bot import credentials, register_handlers
+from transcriptionbot.bot import Credentials, register_handlers
 from telethon import TelegramClient
 
 async def main():
     client = TelegramClient(
         str(Path(__file__).parent.parent.parent / "my_account.session"),
-        credentials.API_ID,
-        credentials.API_HASH,
+        Credentials.API_ID,
+        Credentials.API_HASH,
     )
 
     register_handlers(client)

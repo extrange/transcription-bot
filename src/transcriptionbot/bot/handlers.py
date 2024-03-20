@@ -7,60 +7,62 @@ import traceback
 from pathlib import Path
 from typing import cast
 
+import ffmpeg
 import pysubs2
 from humanize import naturalsize
 from telethon import TelegramClient, events
 from telethon.custom import Button, Message
+from telethon.types import User
 
-from .credentials import credentials
+from .credentials import Credentials
 from .model import model
 from .utils import format_hhmmss, throttle
 
-__logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
-__welcome_message = """Send me any audio/video file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 3x realtime, excluding silences."""
+_welcome_message = """Send me any audio/video file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 3x realtime, excluding silences."""
 
 # Whether we should cancel the job on the next process tick
-__cancelled_status = {}
+_cancelled_status = {}
 
 # Limit to one transcribing task at a time
-__lock = asyncio.Lock()
+_lock = asyncio.Lock()
 
 
-def __is_other_user(message: Message) -> bool:
-    return message.chat_id != credentials.MY_CHAT_ID
+def _is_other_user(message: Message) -> bool:
+    return cast(User, message.sender).username != Credentials.MY_USERNAME
 
 
 def register_handlers(client: TelegramClient):
-    client.add_event_handler(__handle_cancel, events.CallbackQuery(data="cancel"))
-    client.add_event_handler(__handle_audio, events.NewMessage(incoming=True))
+    client.add_event_handler(_handle_cancel, events.CallbackQuery(data="cancel"))
+    client.add_event_handler(_handle_msg, events.NewMessage(incoming=True))
 
 
-async def __handle_cancel(event: events.CallbackQuery.Event):
+async def _handle_cancel(event: events.CallbackQuery.Event):
     message = cast(Message, await event.get_message())
-    __cancelled_status[event.chat_id] = True
+    _cancelled_status[event.chat_id] = True
     await message.edit(text=cast(str, message.text) + "\n\nCancelling...", buttons=None)
     await event.answer()
 
 
-async def __handle_audio(message: Message):
-    if not (message.audio or message.video or message.voice):
-        await message.reply(__welcome_message)
+async def _handle_msg(message: Message):
+    if not (
+        message.audio or message.video or message.voice or message.document
+    ):  # document required for webm support
+        await message.reply(_welcome_message)
         return
 
-    if not (message.file and message.file.size and message.file.duration):
-        raise Exception("Failed to parse file!")
-
-    client = cast(TelegramClient, message.client)
-
     try:
+        client = cast(TelegramClient, message.client)
+
+        if not (message.file and message.file.size):
+            raise Exception("Failed to parse file!")
+
         # file name in notification with quotes added
         file_name = f"'{message.file.name}'" if message.file.name else "voice message"
         file_size = naturalsize(message.file.size)
-        duration_s = message.file.duration
-        duration = format_hhmmss(duration_s)
 
-        prefix = f"Downloading {file_name} ({duration}, {file_size})..."
+        prefix = f"Downloading {file_name}, ({file_size})..."
         reply = cast(Message, await message.reply(prefix, silent=True))
 
         @throttle
@@ -79,6 +81,13 @@ async def __handle_audio(message: Message):
             if dl_path is None:
                 raise Exception("Failed to download file!")
 
+            # Check duration
+            duration_s = message.file.duration or float(
+                ffmpeg.probe(dl_path)["format"]["duration"]
+            )
+            duration = format_hhmmss(duration_s)
+
+
             prefix = f"Downloaded {file_name} ({duration}, {file_size})."
             sender = message.sender
             sender_name = sender.first_name if sender else "Unknown sender"
@@ -86,21 +95,21 @@ async def __handle_audio(message: Message):
 
             # Log file received
             log_msg = f"Received file from '{sender_name}': {prefix}"
-            __logger.info(log_msg)
-            if __is_other_user(message):
+            _logger.info(log_msg)
+            if _is_other_user(message):
                 await client.send_message(
-                    credentials.MY_CHAT_ID,
+                    Credentials.MY_USERNAME,
                     log_msg,
                     file=Path(dl_path).open("rb"),
                     silent=True,
                 )
 
-            if __lock.locked():
+            if _lock.locked():
                 prefix = f"{prefix}\n\nWaiting in queue..."
                 await reply.edit(prefix)
 
-            async with __lock:
-                __cancelled_status[message.chat_id] = False
+            async with _lock:
+                _cancelled_status[message.chat_id] = False
 
                 # TODO throttle this async function
                 async def update_transcription_progress(text: str):
@@ -130,7 +139,7 @@ async def __handle_audio(message: Message):
 
                 def process():
                     for s in segments:
-                        if __cancelled_status[message.chat_id]:
+                        if _cancelled_status[message.chat_id]:
                             break
                         segment_dict = {"start": s.start, "end": s.end, "text": s.text}
                         elapsed_time = time.time() - start
@@ -146,10 +155,10 @@ async def __handle_audio(message: Message):
                 while not future.done():
                     await asyncio.sleep(1)
 
-            if __cancelled_status[message.chat_id]:
+            if _cancelled_status[message.chat_id]:
                 await reply.edit(f"{prefix}cancelled.")
                 log_msg = f"{sender_name} cancelled transcription."
-                await client.send_message(credentials.MY_CHAT_ID, log_msg, silent=True)
+                await client.send_message(Credentials.MY_USERNAME, log_msg, silent=True)
             else:
                 time_taken = round(time.time() - start)
 
@@ -171,10 +180,10 @@ async def __handle_audio(message: Message):
 
                 # Notify me
                 log_msg = f"Completed transcription for {sender_name}: {reply_txt}"
-                __logger.info(log_msg)
-                if __is_other_user(message):
+                _logger.info(log_msg)
+                if _is_other_user(message):
                     await client.send_message(
-                        credentials.MY_CHAT_ID,
+                        Credentials.MY_USERNAME,
                         log_msg,
                         file=txt_file.open("rb"),
                         silent=True,
@@ -182,13 +191,11 @@ async def __handle_audio(message: Message):
 
     except Exception as e:
 
-        log_msg = (
-            f"Received error from {sender_name}:\n\n<pre>{traceback.format_exc()}</pre>"
-        )
-        __logger.error(log_msg)
-        if __is_other_user(message):
+        log_msg = f"Received error from {sender.first_name if sender else 'Unknown sender'}:\n\n<pre>{traceback.format_exc()}</pre>"
+        _logger.error(log_msg)
+        if _is_other_user(message):
             await client.send_message(
-                credentials.MY_CHAT_ID, log_msg, parse_mode="html"
+                Credentials.MY_USERNAME, log_msg, parse_mode="html"
             )
 
         await message.reply(f"Encountered error:\n\n<pre>{e}</pre>", parse_mode="html")
