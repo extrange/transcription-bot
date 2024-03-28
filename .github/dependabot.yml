@@ -4,14 +4,3 @@ updates:
     directory: "/"
     schedule:
       interval: monthly
-
-  - package-ecosystem: "pip"
-    directory: "/"
-    schedule:
-      interval: monthly
-
-    # Group all package updates into one PR
-    groups:
-      main:
-        patterns:
-          - "*"

@@ -10,7 +10,7 @@ from typing import cast
 import ffmpeg
 import pysubs2
 from humanize import naturalsize
-from telethon import TelegramClient, events
+from telethon import TelegramClient, errors, events
 from telethon.custom import Button, Message
 from telethon.types import User
 
@@ -52,6 +52,8 @@ async def _handle_msg(message: Message):
         await message.reply(_welcome_message)
         return
 
+    sender = None
+
     try:
         client = cast(TelegramClient, message.client)
 
@@ -60,18 +62,21 @@ async def _handle_msg(message: Message):
 
         # file name in notification with quotes added
         file_name = f"'{message.file.name}'" if message.file.name else "voice message"
-        file_size = naturalsize(message.file.size)
+        file_size = naturalsize(value=message.file.size)
 
         prefix = f"Downloading {file_name}, ({file_size})..."
         reply = cast(Message, await message.reply(prefix, silent=True))
 
-        @throttle
+        @throttle(delay=3)
         async def update_dl_progress(received_bytes, total):
             """Update telegram with download progress"""
             new_text = f"{prefix}\n{naturalsize(received_bytes)}/{naturalsize(total)} ({float(received_bytes)/total*100:.1f}%)"
             if reply.text == new_text:
                 return
-            await reply.edit(new_text)
+            try:
+                await reply.edit(new_text)
+            except errors.FloodWaitError as e:
+                _logger.error(e)
 
         # Download audio file
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -86,7 +91,6 @@ async def _handle_msg(message: Message):
                 ffmpeg.probe(dl_path)["format"]["duration"]
             )
             duration = format_hhmmss(duration_s)
-
 
             prefix = f"Downloaded {file_name} ({duration}, {file_size})."
             sender = message.sender
@@ -111,11 +115,14 @@ async def _handle_msg(message: Message):
             async with _lock:
                 _cancelled_status[message.chat_id] = False
 
-                # TODO throttle this async function
+                @throttle
                 async def update_transcription_progress(text: str):
-                    await reply.edit(
-                        text, buttons=[Button.inline("cancel")], parse_mode="html"
-                    )
+                    try:
+                        await reply.edit(
+                            text, buttons=[Button.inline("cancel")], parse_mode="html"
+                        )
+                    except errors.FloodWaitError as e:
+                        _logger.error(e)
 
                 # Update user of progress
                 prefix = f"{prefix}\n\nTranscribing..."
@@ -150,6 +157,8 @@ async def _handle_msg(message: Message):
                         results.append(segment_dict)
                         loop.create_task(update_transcription_progress(update_string))
 
+                # Run in default executor to allow faster-whisper to bypass the GIL and not block the main loop
+                # https://stackoverflow.com/questions/69099250/how-does-threadpoolexecutor-utilise-32-cpu-cores-for-cpu-bound-tasks
                 future = asyncio.get_running_loop().run_in_executor(None, process)
 
                 while not future.done():
@@ -158,7 +167,12 @@ async def _handle_msg(message: Message):
             if _cancelled_status[message.chat_id]:
                 await reply.edit(f"{prefix}cancelled.")
                 log_msg = f"{sender_name} cancelled transcription."
-                await client.send_message(Credentials.MY_USERNAME, log_msg, silent=True)
+                _logger.info(log_msg)
+
+                if _is_other_user(message):
+                    await client.send_message(
+                        Credentials.MY_USERNAME, log_msg, silent=True
+                    )
             else:
                 time_taken = round(time.time() - start)
 

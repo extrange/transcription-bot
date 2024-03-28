@@ -1,10 +1,6 @@
 import asyncio
-from transcriptionbot.bot.handlers import register_handlers
-from transcriptionbot.bot.credentials import Credentials
 import logging
-import os
 import random
-import string
 from typing import NamedTuple
 
 import pytest
@@ -12,14 +8,21 @@ import pytest_asyncio
 import uvloop
 from pytest_asyncio import is_async_test
 from telethon import TelegramClient, functions
+from utils import get_random_string
 
-# Don't import transcriptionbot here, so we can modify environment variables for MY_USERNAME
-
+from transcriptionbot.bot.credentials import Credentials
+from transcriptionbot.bot.handlers import register_handlers
 
 # Enable logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
+
+logger = logging.getLogger(__name__)
+
+BOT_USERNAME = get_random_string()
+ME_USERNAME = get_random_string()
+OTHER_USERNAME = get_random_string()
 
 
 class ClientGroup(NamedTuple):
@@ -28,20 +31,9 @@ class ClientGroup(NamedTuple):
     other: TelegramClient
 
 
-def get_random_string(length=10):
-    # Exclude digits because Telegram usernames cannot start with a digit
-    return "".join(random.choices(string.ascii_lowercase, k=length))
-
-
-BOT_USERNAME = get_random_string()
-ME_USERNAME = get_random_string()
-OTHER_USERNAME = get_random_string()
-
-
 def pytest_collection_modifyitems(items):
     """
     Mark all async test_* functions with session scope
-    Note: pytest_asyncio should be in auto mode
     """
     pytest_asyncio_tests = (item for item in items if is_async_test(item))
     session_scope_marker = pytest.mark.asyncio(scope="session")
@@ -60,6 +52,7 @@ def event_loop_policy():
 async def setup_account(test_phone_number: str, username: str):
     """
     Setup a telegram test account with a username.
+    Rotates between random DCs and phone numbers.
     See https://core.telegram.org/api/auth#test-accounts
     """
 
@@ -68,6 +61,7 @@ async def setup_account(test_phone_number: str, username: str):
     await client.start(phone=lambda: test_phone_number, code_callback=lambda: "22222")  # type: ignore
 
     await client(functions.account.UpdateUsernameRequest(username=username))
+    logger.info(f"TEST: Using {test_phone_number=}, {username=}")
     return client
 
 
@@ -81,12 +75,12 @@ async def clients():
     Credentials.MY_USERNAME = ME_USERNAME
 
     _clients = []
-    starting_number = random.randint(0, 9999)
+    numbers = list(range(0, 10_000))
+    random.shuffle(numbers)
     usernames = [BOT_USERNAME, ME_USERNAME, OTHER_USERNAME]
 
     for i in range(3):
-        _clients.append(setup_account(f"999662{starting_number:0>4}", usernames[i]))
-        starting_number = (starting_number + 1) % 10_000
+        _clients.append(setup_account(f"999662{numbers[i]:0>4}", usernames[i]))
 
     client_tuple = ClientGroup(*(await asyncio.gather(*_clients)))
 
