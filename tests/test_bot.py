@@ -17,7 +17,6 @@ loop: asyncio.AbstractEventLoop
 pytestmark = pytest.mark.asyncio(scope="session")
 
 
-@pytest.mark.skip
 async def test_event_loop_policy_is_uvloop():
     # Save current loop for the next test
     global loop
@@ -25,7 +24,6 @@ async def test_event_loop_policy_is_uvloop():
     assert isinstance(asyncio.get_event_loop_policy(), uvloop.EventLoopPolicy)
 
 
-@pytest.mark.skip
 async def test_same_loop_used_for_telethon(clients: ClientGroup):
     global loop
     assert loop == clients.me.loop
@@ -33,7 +31,6 @@ async def test_same_loop_used_for_telethon(clients: ClientGroup):
     assert loop == clients.bot.loop
 
 
-@pytest.mark.skip
 async def test_bot_welcome_message(clients: ClientGroup):
     async with clients.me.conversation(BOT_USERNAME, timeout=5) as conv:
         await conv.send_message("/start")
@@ -41,7 +38,6 @@ async def test_bot_welcome_message(clients: ClientGroup):
         assert _welcome_message in cast(str, resp.raw_text)
 
 
-@pytest.mark.skip
 @pytest.mark.parametrize(
     "test_file", [test_files.short_ogg, test_files.video_mp4, test_files.video_webm]
 )
@@ -53,7 +49,6 @@ async def test_transcriptions(
     )
 
 
-@pytest.mark.skip
 @pytest.mark.parametrize("test_file", [test_files.short_ogg])
 async def test_other_transcribe_audio_and_notify_me(
     clients: ClientGroup, tmp_path: Path, test_file: _TestFile
@@ -71,7 +66,6 @@ async def test_other_transcribe_audio_and_notify_me(
     assert me_msgs[1].file is not None
 
 
-@pytest.mark.skip
 async def test_locking_multiple_requests(clients: ClientGroup):
     with test_files.long_ogg.path.open("rb") as f:
         await clients.other.send_file(BOT_USERNAME, f)
