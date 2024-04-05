@@ -5,7 +5,7 @@
 groups = ["default", "dev"]
 strategy = ["cross_platform", "inherit_metadata"]
 lock_version = "4.4.1"
-content_hash = "sha256:055c38eb1e81a3aaa629a3d8f03a941cc33569638c12a4f3e667c0d18d1f1071"
+content_hash = "sha256:f0a8cc3e7c20c9b63971ca0018cbb7300afd17288555ba574377aa39aa8ab607"
 
 [[package]]
 name = "av"
