@@ -3,7 +3,6 @@ import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-from conftest import BOT_USERNAME
 from telethon import TelegramClient, events
 from telethon.custom import Message
 
@@ -79,7 +78,11 @@ async def wait_for_new_messages(client: TelegramClient, num: int, timeout=10):
 
 
 async def helper_test_transcription_for_file(
-    client: TelegramClient, test_file: _TestFile, tmp_path: Path, timeout=30
+    client: TelegramClient,
+    bot_username: str,
+    test_file: _TestFile,
+    tmp_path: Path,
+    timeout=30,
 ):
     """
     Test helper. Tests whether transcription is completed correctly (by comparing txt and srt outputs) for a file.
@@ -88,16 +91,16 @@ async def helper_test_transcription_for_file(
     """
     with test_file.path.open("rb") as f:
         await client.send_file(
-            BOT_USERNAME, file=f, voice_note=True
+            bot_username, file=f, voice_note=True
         )  # TODO it's not actually sent as a voice note, why?
-    
+
     edit_message_count = 0
     start = time.time()
 
     async def on_edit_message(message: Message):
         nonlocal edit_message_count
         edit_message_count += 1
-    
+
     try:
         client.add_event_handler(on_edit_message, events.MessageEdited(incoming=True))
 

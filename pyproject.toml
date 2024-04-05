@@ -31,4 +31,7 @@ dev = [
 
 [tool.pdm.scripts]
 start = "python -m transcriptionbot.main"
-test = { cmd = "pytest || pytest --last-failed --last-failed-no-failures none" }
+test = "pytest"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

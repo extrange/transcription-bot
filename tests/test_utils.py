@@ -65,13 +65,13 @@ async def test_throttle_async_default_delay():
 async def test_throttle_async_custom_delay():
     count = 0
 
-    @throttle(delay=2)
+    @throttle(delay=3)
     async def throttle_custom():
         nonlocal count
         count += 1
     
-    await repeat_async(throttle_custom, 5, 1)
-    assert count == 3
+    await repeat_async(throttle_custom, 4, 1)
+    assert count == 2
 
 @pytest.mark.asyncio
 async def test_throttle_async_with_await():
