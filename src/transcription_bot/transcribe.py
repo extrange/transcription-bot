@@ -1,22 +1,28 @@
 import asyncio
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine
-from pathlib import Path
 from typing import Concatenate
 
 import replicate
 import replicate.version
-from pydantic import HttpUrl
 from replicate.prediction import Prediction
 
-from .types import ModelParams, ModelParamsWithoutUrl, Output
+from .types import ModelParams, ModelParamsWithoutUrl, Output, PredictionStatus
+
+_logger = logging.getLogger(__name__)
 
 
 class BaseTranscriber(ABC):
     """Base class for classes implementing external audio transcription."""
 
     @abstractmethod
-    async def send_job(self, audio: Path) -> None:
+    async def send_job(
+        self,
+        file_url: str,
+        log_cb: Callable[Concatenate[str, ...], Coroutine] | None,
+        update_interval: int = 3,
+    ) -> tuple[str | None, PredictionStatus]:
         """Transcribe and diarize an audio file."""
 
 
@@ -55,22 +61,15 @@ class ReplicateTranscriber(BaseTranscriber):
             await prediction.async_reload()
 
     @staticmethod
-    async def _wait_until_done(
-        done_cb: Callable[Concatenate[Output | None, ...]],
-        prediction: Prediction,
-    ) -> None:
-        await prediction.async_wait()
-        await done_cb(prediction)
-        # TODO return something like jobstatus instead of None
-        # TODO why is prediction accepted here
+    def _process_output(output: Output) -> str:
+        return "\n\n".join([f"{s.speaker}: {s.text}" for s in output.segments])
 
     async def send_job(
         self,
-        file_url: HttpUrl,
-        done_cb: Callable[Concatenate[Output | None, ...]],
+        file_url: str,
         log_cb: Callable[Concatenate[str, ...], Coroutine] | None,
         update_interval: int = 3,
-    ) -> None:
+    ) -> tuple[str | None, PredictionStatus]:
         """
         Start a transcription job asynchronously.
 
@@ -83,8 +82,15 @@ class ReplicateTranscriber(BaseTranscriber):
             input=params_with_url.model_dump(),
         )
 
+        _logger.info("Prediction created for file %s", file_url)
+
         if log_cb:
             self.update_task = asyncio.create_task(
                 self._update_progress(log_cb, update_interval, prediction),
             )
-        self.done_task = asyncio.create_task(self._wait_until_done(done_cb, prediction))
+
+        await prediction.async_wait()
+        processed_output = (
+            self._process_output(prediction.output) if prediction.output else None
+        )
+        return (processed_output, prediction.status)

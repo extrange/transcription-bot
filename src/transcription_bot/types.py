@@ -1,6 +1,14 @@
 from typing import Literal
 
-from pydantic import BaseModel, HttpUrl, PositiveInt
+from pydantic import BaseModel, PositiveInt
+
+type PredictionStatus = Literal[
+    "starting",
+    "processing",
+    "succeeded",
+    "failed",
+    "canceled",
+]
 
 
 class Word(BaseModel):
@@ -35,6 +43,8 @@ class ModelParamsWithoutUrl(BaseModel):
     """
     Parameters as from https://github.com/thomasmol/cog-whisper-diarization/blob/main/predict.py, without file_url.
 
+    Sane defaults set.
+
     Removed file and file_string.
     """
 
@@ -44,7 +54,7 @@ class ModelParamsWithoutUrl(BaseModel):
     transcript_output_format: Literal["words_only", "segments_only", "both"] = "both"
     """Specify the format of the transcript output: individual words with timestamps, full text of segments, or a combination of both."""
 
-    num_speakers: int | None
+    num_speakers: int | None = None
     """Number of speakers, leave empty to autodetect."""
 
     translate: bool = False
@@ -63,5 +73,5 @@ class ModelParamsWithoutUrl(BaseModel):
 class ModelParams(ModelParamsWithoutUrl):
     """Same as ModelParamsWithoutUrl but with the file_url."""
 
-    file_url: HttpUrl
+    file_url: str
     """Or provide: A direct audio file URL"""

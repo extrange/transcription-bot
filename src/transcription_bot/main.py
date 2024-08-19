@@ -6,6 +6,8 @@ from typing import NoReturn
 import uvloop
 from telethon import TelegramClient
 
+from .handlers.register import register_handlers
+from .settings import Settings
 from .utils.logger import setup_logging
 
 
@@ -14,8 +16,8 @@ async def main() -> NoReturn:
     setup_logging()
     client = TelegramClient(
         str(Path(__file__).parent.parent.parent / "my_account.session"),
-        Credentials.API_ID,
-        Credentials.API_HASH,
+        Settings.API_ID,
+        Settings.API_HASH.get_secret_value(),
     )
 
     register_handlers(client)

@@ -14,5 +14,7 @@ class _Settings(BaseSettings):
     MINIO_BUCKET: str
     MODEL_VERSION: str
 
+    TZ: str
+
 
 Settings = _Settings.model_validate({})

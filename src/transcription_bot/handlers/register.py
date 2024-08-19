@@ -1,13 +1,13 @@
 import logging
 
-from telethon import TelegramClient, events, functions, types
+from telethon import TelegramClient, events
 
 from .main import main_handler
 
 logger = logging.getLogger(__name__)
 
 
-def register_handlers(client: TelegramClient):
+def register_handlers(client: TelegramClient) -> None:
     """
     Register Telethon handlers.
 
