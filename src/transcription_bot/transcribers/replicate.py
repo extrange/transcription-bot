@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from abc import ABC, abstractmethod
 from collections.abc import Callable, Coroutine
 from typing import Concatenate
 
@@ -8,22 +7,15 @@ import replicate
 import replicate.version
 from replicate.prediction import Prediction
 
-from .types import ModelParams, ModelParamsWithoutUrl, Output, PredictionStatus
+from transcription_bot.transcribers.base import BaseTranscriber
+from transcription_bot.types import (
+    ModelParams,
+    ModelParamsWithoutUrl,
+    Output,
+    PredictionStatus,
+)
 
 _logger = logging.getLogger(__name__)
-
-
-class BaseTranscriber(ABC):
-    """Base class for classes implementing external audio transcription."""
-
-    @abstractmethod
-    async def send_job(
-        self,
-        file_url: str,
-        log_cb: Callable[Concatenate[str, ...], Coroutine] | None,
-        update_interval: int = 3,
-    ) -> tuple[str | None, PredictionStatus]:
-        """Transcribe and diarize an audio file."""
 
 
 class ReplicateTranscriber(BaseTranscriber):
@@ -45,23 +37,26 @@ class ReplicateTranscriber(BaseTranscriber):
     def _is_prediction_running(prediction: Prediction) -> bool:
         return prediction.status in ("starting", "processing")
 
-    @staticmethod
     async def _update_progress(
+        self,
         log_cb: Callable[Concatenate[str, ...], Coroutine],
         update_interval: int,
         prediction: Prediction,
     ) -> None:
-        tasks = []
+        self.tasks = set()
 
         while ReplicateTranscriber._is_prediction_running(prediction):
             logs = prediction.logs
-            tasks.append(
-                asyncio.create_task(
-                    log_cb(f"{prediction.status}: {logs or "No logs yet..."}")
-                )
+            _logger.info("logs: %s", logs)
+            task = asyncio.create_task(
+                log_cb(f"{prediction.status}: {logs or "Waiting in queue..."}")
             )
+            self.tasks.add(task)
+            task.add_done_callback(self.tasks.discard)
             await asyncio.sleep(update_interval)
             await prediction.async_reload()
+
+        _logger.info("_update_progress exited.")
 
     @staticmethod
     def _process_output(output: Output) -> str:
@@ -91,6 +86,7 @@ class ReplicateTranscriber(BaseTranscriber):
             self.update_task = asyncio.create_task(
                 self._update_progress(log_cb, update_interval, prediction),
             )
+            _logger.info("Created task for logging callback.")
 
         await prediction.async_wait()
         processed_output = (

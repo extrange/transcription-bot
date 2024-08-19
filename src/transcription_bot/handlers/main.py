@@ -18,7 +18,8 @@ from transcription_bot.handlers.utils import (
     notify_error,
 )
 from transcription_bot.settings import Settings
-from transcription_bot.transcribe import BaseTranscriber, ReplicateTranscriber
+from transcription_bot.transcribers.base import BaseTranscriber
+from transcription_bot.transcribers.replicate import ReplicateTranscriber
 from transcription_bot.types import ModelParamsWithoutUrl
 
 from .download import DownloadHandler
@@ -27,7 +28,7 @@ from .utils import get_sender_name, on_update
 _logger = logging.getLogger(__name__)
 
 
-async def _log_progress(reply_msg: Message, progress: str) -> None:
+async def _log_progress(progress: str, reply_msg: Message) -> None:
     progress_msg = f"Processing...\n<pre>{progress}</pre>"
     await on_update(reply_msg, progress_msg)
 
@@ -49,6 +50,7 @@ async def _get_transcript(
         url,
         log_cb=partial(_log_progress, reply_msg=reply_msg),
     )
+
     if not result:
         msg = f"{status=}"
         raise TranscriptionFailedError(msg)
@@ -66,7 +68,7 @@ async def main_handler(message: Message) -> None:
         reply_msg = cast(
             Message,
             await message.reply(
-                "Send me any audio/video file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 3x realtime, excluding silences.",
+                "Send me any audio/video file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 10x realtime.",
                 silent=True,
             ),
         )

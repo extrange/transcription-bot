@@ -13,15 +13,16 @@ from transcription_bot.settings import Settings
 _logger = logging.getLogger(__name__)
 
 
-async def on_update(message: Message, text: str) -> None:
+async def on_update(message: Message, text: str, parse_mode: str = "html") -> None:
     """Update a telegram message with the text. Use as a callback."""
     # Don't update the message if it is identical or Telegram will throw errors
-    if message.text == text:
-        return
     try:
-        await message.edit(text)
+        await message.edit(text, parse_mode=parse_mode)
     except errors.FloodWaitError:
         _logger.exception("FloodWaitError: not sending message '%s", text)
+    except errors.MessageNotModifiedError:
+        # How to get original message text?
+        pass
 
 
 def is_other_user(message: Message) -> bool:
