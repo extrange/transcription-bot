@@ -3,6 +3,7 @@ import logging
 from collections.abc import Callable, Coroutine
 from typing import Concatenate
 
+import httpx
 import replicate
 import replicate.version
 from replicate.prediction import Prediction
@@ -16,6 +17,10 @@ from transcription_bot.types import (
 )
 
 _logger = logging.getLogger(__name__)
+
+
+class MaxAttemptsExceededError(Exception):
+    """Too many attempts to connect to replicate failed."""
 
 
 class ReplicateTranscriber(BaseTranscriber):
@@ -75,10 +80,28 @@ class ReplicateTranscriber(BaseTranscriber):
         """
         version = self._construct_model()
         params_with_url = ModelParams(**self.params.model_dump(), file_url=file_url)
-        prediction = await replicate.predictions.async_create(
-            version,
-            input=params_with_url.model_dump(exclude_none=True),
-        )
+
+        async def get_prediction(max_attempts: int = 3) -> Prediction:
+            attempts = 0
+            prediction = None
+            while not prediction:
+                if attempts > max_attempts:
+                    raise MaxAttemptsExceededError
+                try:
+                    prediction = await replicate.predictions.async_create(
+                        version,
+                        input=params_with_url.model_dump(exclude_none=True),
+                    )
+
+                except httpx.ConnectTimeout:
+                    _logger.warning(
+                        "Attempt %s: Failed to send file to replicate, retrying",
+                        attempts + 1,
+                    )
+                    attempts += 1
+            return prediction
+
+        prediction = await get_prediction()
 
         _logger.info("Prediction created for file %s", file_url)
 
