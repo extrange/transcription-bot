@@ -1,8 +1,15 @@
-from pydantic import SecretStr
+import logging
+from pathlib import Path
+
+from pydantic import (
+    SecretStr,
+    field_validator,
+)
 from pydantic_settings import BaseSettings
 
 
 class _Settings(BaseSettings):
+    SESSION_FILE: Path
     TOKEN: SecretStr
     API_HASH: SecretStr
     API_ID: int
@@ -15,6 +22,15 @@ class _Settings(BaseSettings):
     MODEL_VERSION: str
 
     TZ: str
+    LOG_LEVEL: str = "INFO"
+
+    @field_validator("LOG_LEVEL")
+    @classmethod
+    def _check_log_level(cls, v: str) -> str:
+        if v not in logging.getLevelNamesMapping():
+            msg = f"'{v}' is not a valid log level"
+            raise ValueError(msg)
+        return v
 
 
 Settings = _Settings.model_validate({})

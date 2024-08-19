@@ -5,13 +5,14 @@ from functools import partial
 from pathlib import Path
 from typing import cast
 
+from python_utils import format_hhmmss
 from telethon import TelegramClient
 from telethon.custom import Message
 from telethon.events import StopPropagation
 
 from transcription_bot.file_api.minio_api import FileApi
 from transcription_bot.file_api.policy import Policy
-from transcription_bot.handlers.types import NoMediaFileError, TranscriptionFailedError
+from transcription_bot.handlers.types import TranscriptionFailedError
 from transcription_bot.handlers.utils import (
     is_other_user,
     notify_error,
@@ -21,7 +22,7 @@ from transcription_bot.transcribe import BaseTranscriber, ReplicateTranscriber
 from transcription_bot.types import ModelParamsWithoutUrl
 
 from .download import DownloadHandler
-from .utils import format_hhmmss, get_sender_name, on_update
+from .utils import get_sender_name, on_update
 
 _logger = logging.getLogger(__name__)
 
@@ -60,6 +61,19 @@ async def _get_transcript(
 
 async def main_handler(message: Message) -> None:
     """Handle all incoming messages, including /start and audio/video files."""
+    _logger.debug("test")
+    if not DownloadHandler.should_handle_message(message):
+        reply_msg = cast(
+            Message,
+            await message.reply(
+                "Send me any audio/video file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 3x realtime, excluding silences.",
+                silent=True,
+            ),
+        )
+        raise StopPropagation
+
+    reply_msg = cast(Message, await message.reply("Processing...", silent=True))
+
     api = FileApi(
         host=Settings.MINIO_HOST,
         access_key=Settings.MINIO_ACCESS_KEY.get_secret_value(),
@@ -72,18 +86,9 @@ async def main_handler(message: Message) -> None:
         ModelParamsWithoutUrl(),
     )
 
-    reply_msg = cast(Message, await message.reply("Starting...", silent=True))
-
     try:
         handler = DownloadHandler(message, reply_msg, api)
         url = await handler.download()
-
-    except NoMediaFileError as e:
-        # User did not attach a file
-        await reply_msg.edit(
-            "Send me any audio/video file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 3x realtime, excluding silences.",
-        )
-        raise StopPropagation from e
 
     except Exception as e:
         await notify_error(message, "Encountered error:", e)

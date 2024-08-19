@@ -44,8 +44,10 @@ class FileApi(BaseApi):
         )
         return json.dumps(_policy, separators=(",", ":"))
 
-    def _construct_minio_url(self, destination_file: str) -> str:
-        return f"{self.host}/{self.bucket_name}/{destination_file}"
+    def _construct_minio_url(
+        self, destination_file: str, scheme: str = "https://"
+    ) -> str:
+        return f"{scheme}{self.host}/{self.bucket_name}/{destination_file}"
 
     def _set_bucket_policy(self) -> None:
         self.client.set_bucket_policy(self.bucket_name, self.default_policy)

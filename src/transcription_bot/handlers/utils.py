@@ -1,12 +1,7 @@
-import asyncio
-import functools
 import logging
-import time
 import traceback
-from collections.abc import Callable, Coroutine
-from datetime import timedelta
 from pathlib import Path
-from typing import Any, cast, overload
+from typing import cast
 
 import ffmpeg
 from telethon import TelegramClient, errors
@@ -16,74 +11,6 @@ from telethon.types import User
 from transcription_bot.settings import Settings
 
 _logger = logging.getLogger(__name__)
-
-
-def format_hhmmss(s: float) -> str:
-    """Format seconds into HH:MM:SS format."""
-    delta = timedelta(seconds=s)
-    hours = delta.days * 24 + delta.seconds // 3600
-    minutes = (delta.seconds % 3600) // 60
-    seconds = delta.seconds % 60
-    return f"{hours}:{minutes:02d}:{seconds:02d}"
-
-
-type _Coro[T] = Coroutine[Any, Any, T]
-type _WrappedDeco[**P, T] = Callable[
-    [Callable[P, _Coro[T]]],
-    Callable[P, _Coro[T | None]],
-]
-
-
-@overload
-def athrottle[**P, R](*, delay: float = 1) -> _WrappedDeco[P, R]: ...
-
-
-@overload
-def athrottle[**P, T](
-    _func: Callable[P, _Coro[T]],
-    *,
-    delay: float = 1,
-) -> Callable[P, _Coro[T | None]]: ...
-
-
-def athrottle[**P, T](
-    _func: Callable[P, _Coro[T]] | None = None,
-    *,
-    delay: float = 1,
-) -> Callable[P, _Coro[T | None]] | _WrappedDeco[P, T]:
-    """
-    Decorate an async function with throttle.
-
-    Returns `None` if called within window.
-    """
-
-    def decorate(
-        func: Callable[P, _Coro[T]],
-    ) -> Callable[P, _Coro[T | None]]:
-        last_called: float | None = None
-        lock = asyncio.Lock()
-
-        @functools.wraps(func)
-        async def wrapped_async(*args: P.args, **kwargs: P.kwargs) -> T | None:
-            # The lock is necessary to ensure that tasks created at the same time don't simultaneously modify last_called
-            async with lock:
-                nonlocal last_called
-                now = time.time()
-                result = None
-                if not last_called or now - last_called > delay:
-                    result = await func(*args, **kwargs)
-                    last_called = now
-            return result
-
-        return wrapped_async
-
-    if _func:
-        # Decorator called without arguments: _func is passed
-        # We apply and return the decorated function (with default values)
-        return decorate(_func)
-    # Decorator called with arguments: _func will be None
-    # We return the decorator (as a closure), which will then be applied to the function
-    return decorate
 
 
 async def on_update(message: Message, text: str) -> None:
@@ -121,7 +48,7 @@ async def notify_error(
 
     sender = cast(User, await message.get_sender())
 
-    _logger.error(err_msg)
+    _logger.exception(err_msg)
 
     if is_other_user(message):
         # Notify me

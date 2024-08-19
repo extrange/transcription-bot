@@ -1,6 +1,5 @@
 """Setup client and start the bot proper."""
 
-from pathlib import Path
 from typing import NoReturn
 
 import uvloop
@@ -15,7 +14,7 @@ async def main() -> NoReturn:
     """Start the bot."""
     setup_logging()
     client = TelegramClient(
-        str(Path(__file__).parent.parent.parent / "my_account.session"),
+        Settings.SESSION_FILE,
         Settings.API_ID,
         Settings.API_HASH.get_secret_value(),
     )

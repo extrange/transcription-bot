@@ -55,8 +55,11 @@ class ReplicateTranscriber(BaseTranscriber):
 
         while ReplicateTranscriber._is_prediction_running(prediction):
             logs = prediction.logs
-            if logs:
-                tasks.append(asyncio.create_task(log_cb(logs)))
+            tasks.append(
+                asyncio.create_task(
+                    log_cb(f"{prediction.status}: {logs or "No logs yet..."}")
+                )
+            )
             await asyncio.sleep(update_interval)
             await prediction.async_reload()
 
@@ -79,7 +82,7 @@ class ReplicateTranscriber(BaseTranscriber):
         params_with_url = ModelParams(**self.params.model_dump(), file_url=file_url)
         prediction = await replicate.predictions.async_create(
             version,
-            input=params_with_url.model_dump(),
+            input=params_with_url.model_dump(exclude_none=True),
         )
 
         _logger.info("Prediction created for file %s", file_url)
@@ -91,6 +94,8 @@ class ReplicateTranscriber(BaseTranscriber):
 
         await prediction.async_wait()
         processed_output = (
-            self._process_output(prediction.output) if prediction.output else None
+            self._process_output(Output.model_validate(prediction.output))
+            if prediction.output
+            else None
         )
         return (processed_output, prediction.status)

@@ -7,19 +7,20 @@ from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 from humanize import naturalsize
+from python_utils import athrottle, format_hhmmss
 from telethon import TelegramClient
 from telethon.custom import Message
 from telethon.tl.custom.file import File
 
 from transcription_bot.file_api.base_api import BaseApi
+from transcription_bot.handlers.types import DownloadFailedError
 from transcription_bot.handlers.utils import (
     ffprobe_get_duration_s,
     is_other_user,
 )
 from transcription_bot.settings import Settings
 
-from .types import DownloadFailedError, NoMediaFileError
-from .utils import athrottle, format_hhmmss, get_sender_name, on_update
+from .utils import get_sender_name, on_update
 
 _logger = logging.getLogger(__name__)
 
@@ -37,16 +38,14 @@ class DownloadHandler:
         self.message = message
         self.reply_msg = reply_msg
         self.api = api
-        self._should_handle_message()
 
-    def _should_handle_message(self) -> None:
+    @staticmethod
+    def should_handle_message(message: Message) -> bool:
         """Check if  message has media attached."""
-        message = self.message
         # webm files are considered documents
-        if not (
+        return bool(
             message.audio or message.video or message.voice or message.document
-        ) and bool(message.file):
-            raise NoMediaFileError
+        ) or bool(message.file)
 
     def _get_file_size(self, file: File) -> str:
         return naturalsize(value=file.size) if file.size else "unknown size"
@@ -80,7 +79,7 @@ class DownloadHandler:
             dl_path = await self._download_file(Path(temp_dir))
             return await self._upload_file(dl_path)
 
-    async def _on_download_update(
+    def _on_download_update(
         self,
         message: Message,
         prefix: str | None = None,
@@ -117,13 +116,18 @@ class DownloadHandler:
         await self.reply_msg.edit(prefix)
 
         # Download file
-        dl_path: Path | None = await message.download_media(
-            file=dl_dir / file_name,
-            progress_callback=self._on_download_update(self.reply_msg, prefix),
+        dl_path_str = cast(
+            str | None,
+            await message.download_media(
+                file=dl_dir / file_name,
+                progress_callback=self._on_download_update(self.reply_msg, prefix),
+            ),
         )
 
-        if dl_path is None:
+        if dl_path_str is None:
             raise DownloadFailedError
+
+        dl_path = Path(dl_path_str)
 
         duration_s = file.duration or ffprobe_get_duration_s(dl_path)
         duration = format_hhmmss(duration_s)
@@ -140,7 +144,7 @@ class DownloadHandler:
             await cast(TelegramClient, message.client).send_message(
                 Settings.MY_USERNAME.get_secret_value(),
                 log_msg,
-                file=dl_path.open("rb"),
+                file=dl_path.open("rb"),  # noqa: ASYNC230
                 silent=True,
             )
 

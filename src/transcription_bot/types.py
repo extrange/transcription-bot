@@ -60,7 +60,7 @@ class ModelParamsWithoutUrl(BaseModel):
     translate: bool = False
     """Translate the speech into English."""
 
-    language: str | None = None
+    language: str | None = "en"
     """Language of the spoken words as a language code like 'en'. Leave empty to auto detect language."""
 
     prompt: str | None = None
