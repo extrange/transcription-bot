@@ -1,31 +1,71 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
-// README at: https://github.com/devcontainers/templates/tree/main/src/python
+// README at: https://github.com/devcontainers/templates/tree/main/src/docker-existing-dockerfile
 {
 	"name": "Existing Dockerfile",
-	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"dockerComposeFile": "../compose.yml",
-	"service": "transcription-bot",
-	"overrideCommand": true,
-	"workspaceFolder": "/app",
+	"build": {
+		// Sets the run context to one level up instead of the .devcontainer folder.
+		"context": "..",
+		// Update the 'dockerFile' property if you aren't using the standard 'Dockerfile' filename.
+		"dockerfile": "../Dockerfile",
+		"target": "dev"
+	},
+	"runArgs": [
+		"--env-file",
+		"env/local.env"
+	],
+	"features": {
+		"ghcr.io/devcontainers/features/common-utils:2": {
+			"upgradePackages": false,
+			"username": "automatic",
+			"userUid": "automatic",
+			"userGid": "automatic",
+			"installZsh": false,
+			"installOhMyZsh": false,
+			"installOhMyZshConfig": false
+		},
+		"ghcr.io/devcontainers-contrib/features/pre-commit:2": {
+			"version": "latest"
+		},
+		"ghcr.io/dhoeric/features/hadolint:1": {},
+		"ghcr.io/devcontainers-contrib/features/poetry": {}
+	},
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+	// Uncomment the next line to run commands after the container is created.
+	"postCreateCommand": {
+		"Install pre-commit hooks": "pre-commit install",
+		"Install poetry packages": "poetry install"
+	},
+	// Configure tool-specific properties.
 	"customizations": {
 		"vscode": {
 			"extensions": [
 				"ms-python.python",
-				"ms-python.isort",
-				"ms-python.black-formatter",
+				"charliermarsh.ruff",
+				"ms-toolsai.jupyter",
+				"timonwong.shellcheck",
+				"esbenp.prettier-vscode",
+				"github.vscode-github-actions",
+				"ms-azuretools.vscode-docker",
+				"exiasr.hadolint",
 				"tamasfe.even-better-toml",
-				"github.vscode-github-actions"
-			]
+				"inferrinizzard.prettier-sql-vscode"
+			],
+			"settings": {
+				"python.defaultInterpreterPath": "./.venv/bin/python",
+				"editor.formatOnSave": true,
+				"[python]": {
+					"editor.defaultFormatter": "charliermarsh.ruff",
+					"editor.codeActionsOnSave": {
+						"source.organizeImports": "always"
+					}
+				},
+				"jupyter.kernels.excludePythonEnvironments": [
+					"/usr/local/bin/python" // Use the venv from Poetry instead
+				]
+			}
 		}
-	}
-	// Features to add to the dev container. More info: https://containers.dev/features.
-	// "features": {},
-	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
-	// Use 'postCreateCommand' to run commands after the container is created.
-	// "postCreateCommand": "pip3 install -r requirements.txt"
-	// Configure tool-specific properties.
-	// "customizations": {},
-	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
-	// "remoteUser": "root"
+	},
+	// Uncomment to connect as an existing user other than the container default. More info: https://aka.ms/dev-containers-non-root.
+	"remoteUser": "vscode"
 }

@@ -1,5 +1,4 @@
 import asyncio
-import html
 import logging
 import tempfile
 import time
@@ -10,47 +9,39 @@ from typing import cast
 import ffmpeg
 import pysubs2
 from humanize import naturalsize
-from telethon import TelegramClient, errors, events
+from telethon import TelegramClient, errors
 from telethon.custom import Button, Message
+from telethon.events import StopPropagation
 from telethon.types import User
 
-from .credentials import Credentials
-from .model import model
+from transcription_bot.settings import Settings
+
 from .utils import format_hhmmss, throttle
 
 _logger = logging.getLogger(__name__)
-
-_welcome_message = """Send me any audio/video file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 3x realtime, excluding silences."""
-
-# Whether we should cancel the job on the next process tick
-_cancelled_status = {}
 
 # Limit to one transcribing task at a time
 _lock = asyncio.Lock()
 
 
 def _is_other_user(message: Message) -> bool:
-    return cast(User, message.sender).username != Credentials.MY_USERNAME
+    return (
+        cast(User, message.sender).username != Settings.MY_USERNAME.get_secret_value()
+    )
 
 
-def register_handlers(client: TelegramClient):
-    client.add_event_handler(_handle_cancel, events.CallbackQuery(data="cancel"))
-    client.add_event_handler(_handle_msg, events.NewMessage(incoming=True))
+async def download_file(): ...
 
 
-async def _handle_cancel(event: events.CallbackQuery.Event):
-    message = cast(Message, await event.get_message())
-    _cancelled_status[event.chat_id] = True
-    await message.edit(text=cast(str, message.text) + "\n\nCancelling...", buttons=None)
-    await event.answer()
-
-
-async def _handle_msg(message: Message):
+async def main_handler(message: Message) -> None:
+    """Handle all incoming messages, including /start and audio/video files."""
     if not (
         message.audio or message.video or message.voice or message.document
     ):  # document required for webm support
-        await message.reply(_welcome_message)
-        return
+        await message.reply(
+            "Send me any audio/video file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 3x realtime, excluding silences.",
+        )
+        raise StopPropagation
 
     sender = None
 
@@ -58,7 +49,7 @@ async def _handle_msg(message: Message):
         client = cast(TelegramClient, message.client)
 
         if not (message.file and message.file.size):
-            raise Exception("Failed to parse file!")
+            raise ValueError("Failed to parse file!")
 
         # file name in notification with quotes added
         file_name = f"'{message.file.name}'" if message.file.name else "voice message"
@@ -102,7 +93,7 @@ async def _handle_msg(message: Message):
             _logger.info(log_msg)
             if _is_other_user(message):
                 await client.send_message(
-                    Credentials.MY_USERNAME,
+                    Settings.MY_USERNAME.get_secret_value(),
                     log_msg,
                     file=Path(dl_path).open("rb"),
                     silent=True,
@@ -144,26 +135,6 @@ async def _handle_msg(message: Message):
                 start = time.time()
                 results = []
 
-                def process():
-                    for s in segments:
-                        if _cancelled_status[message.chat_id]:
-                            break
-                        segment_dict = {"start": s.start, "end": s.end, "text": s.text}
-                        elapsed_time = time.time() - start
-                        frac_done = s.end / duration_s
-                        speed = frac_done / elapsed_time
-                        est_time_left = (1 - frac_done) / speed
-                        update_string = f"{prefix} {format_hhmmss(elapsed_time)}<{format_hhmmss(est_time_left)}\n\n<pre>{html.escape(s.text)}</pre>"
-                        results.append(segment_dict)
-                        loop.create_task(update_transcription_progress(update_string))
-
-                # Run in default executor to allow faster-whisper to bypass the GIL and not block the main loop
-                # https://stackoverflow.com/questions/69099250/how-does-threadpoolexecutor-utilise-32-cpu-cores-for-cpu-bound-tasks
-                future = asyncio.get_running_loop().run_in_executor(None, process)
-
-                while not future.done():
-                    await asyncio.sleep(1)
-
             if _cancelled_status[message.chat_id]:
                 await reply.edit(f"{prefix}cancelled.")
                 log_msg = f"{sender_name} cancelled transcription."
@@ -171,7 +142,7 @@ async def _handle_msg(message: Message):
 
                 if _is_other_user(message):
                     await client.send_message(
-                        Credentials.MY_USERNAME, log_msg, silent=True
+                        Settings.MY_USERNAME.get_secret_value(), log_msg, silent=True
                     )
             else:
                 time_taken = round(time.time() - start)
@@ -197,19 +168,18 @@ async def _handle_msg(message: Message):
                 _logger.info(log_msg)
                 if _is_other_user(message):
                     await client.send_message(
-                        Credentials.MY_USERNAME,
+                        Settings.MY_USERNAME.get_secret_value(),
                         log_msg,
                         file=txt_file.open("rb"),
                         silent=True,
                     )
 
     except Exception as e:
-
         log_msg = f"Received error from {sender.first_name if sender else 'Unknown sender'}:\n\n<pre>{traceback.format_exc()}</pre>"
         _logger.error(log_msg)
         if _is_other_user(message):
             await client.send_message(
-                Credentials.MY_USERNAME, log_msg, parse_mode="html"
+                Settings.MY_USERNAME.get_secret_value(), log_msg, parse_mode="html"
             )
 
         await message.reply(f"Encountered error:\n\n<pre>{e}</pre>", parse_mode="html")

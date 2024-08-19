@@ -1,0 +1,39 @@
+# View options here https://docs.astral.sh/ruff/configuration/
+target-version = "py312"
+
+[lint]
+# View rules here: https://docs.astral.sh/ruff/rules/
+select = [
+    "ALL",
+    "TD006", # TODO capitalization
+]
+
+ignore = [
+    "D100",   # undocumented-public-module
+    "D203",   # one-blank-line-before-class
+    "D211",   # blank-line-before-class
+    "D212",   # multi-line-summary-first-line
+    "TD",     # flake8-todos
+    "FIX002", # Line contains TODO
+    "D104",   # Mussing docstring in public package
+    "E501",   # line-too-long
+]
+
+[lint.pydocstyle]
+# Use PEP257 docstrings
+convention = "pep257"
+
+[lint.per-file-ignores]
+# Don't enforce certain rules on test files
+"tests/**" = [
+    "D",       # Documentation related
+    "ANN001",  # missing-type-function-argument
+    "ANN201",  # Missing return-type annotation
+    "ANN202",  # missing-return-type-private-function
+    "S101",    # Use of assert
+    "PLR2004", # Magic values
+    "INP001",  # implicit-namespace-package
+    "PT004",   # pytest-missing-fixture-name-underscore
+    "S105",    # hardcoded-password-string
+    "SLF001",  # private member access
+]

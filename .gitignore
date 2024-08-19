@@ -162,5 +162,7 @@ cython_debug/
 #.idea/
 
 # Telethon sessions
+/credentials
+/data
 /*.session
 /*.session-journal

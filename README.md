@@ -32,10 +32,13 @@ To run in the background, do `docker compose up -d`.
 
 Login credentials will be stored in a `<name>.session` file for future runs.
 
+## Testing
+
+`coverage run --branch -m pytest && coverage html`
+
 ## Notes
 
 `MY_CHAT_ID` is the chat id of your own private chat with the bot. It's used to alert you when users use your bot. To obtain it you can either print the output of `message.chat.id` or use [@RawDataBot][rawdatabot].
-
 
 [`faster-whisper`]: https://github.com/guillaumekln/faster-whisper
 [botfather]: https://core.telegram.org/bots/features#creating-a-new-bot

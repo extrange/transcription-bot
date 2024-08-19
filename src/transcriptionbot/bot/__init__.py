@@ -1,2 +1,0 @@
-from transcriptionbot.bot.credentials import Credentials
-from transcriptionbot.bot.handlers import register_handlers

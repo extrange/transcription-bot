@@ -2,7 +2,7 @@ services:
   transcription-bot:
     container_name: transcription-bot
     build: .
-    restart: unless-stopped
+    restart: always
     volumes:
       - .:/app
       - .cache:/home/vscode/.cache # Cache models
