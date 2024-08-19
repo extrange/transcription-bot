@@ -4,15 +4,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import pytest
-from transcription_bot.handlers.utils import throttle
-
-
-def repeat(func: Callable[[], Any], times: int, delay: float = 0):
-    """Repeatedly call a function, optionally with a delay between invocations."""
-    for _ in range(times):
-        func()
-        if delay:
-            time.sleep(delay)
+from transcription_bot.handlers.utils import athrottle
 
 
 async def repeat_async(
@@ -20,42 +12,41 @@ async def repeat_async(
     times: int,
     interval: float = 0,
 ):
+    """Repeatedly call an async function, optionally with a delay between invocations."""
     for _ in range(times):
         await func()
         if interval:
             await asyncio.sleep(interval)
 
 
-def test_throttle_default_delay():
+@pytest.mark.asyncio()
+async def test_throttle_return_result():
+    """Check that a function's result is None if called within the window, and not None otherwise."""
     count = 0
+    delay = 0.1
 
-    @throttle
-    def throttle_default():
+    @athrottle(delay=delay)
+    async def throttle():
         nonlocal count
         count += 1
+        return count
 
-    repeat(throttle_default, 10)
+    assert await throttle() == 1
+    for _ in range(2):
+        assert await throttle() is None
 
-    assert count == 1
+    # Wait for the window to be over
+    await asyncio.sleep(delay)
 
-
-def test_throttle_custom_delay():
-    count = 0
-
-    @throttle(delay=0.2)
-    def throttle_custom():
-        nonlocal count
-        count += 1
-
-    repeat(throttle_custom, times=5, delay=0.1)
-    assert count == 3
+    assert await throttle() == 2
 
 
 @pytest.mark.asyncio()
 async def test_throttle_async_default_delay():
+    """Test that the default delay works."""
     count = 0
 
-    @throttle
+    @athrottle
     async def throttle_default():
         nonlocal count
         count += 1
@@ -66,13 +57,15 @@ async def test_throttle_async_default_delay():
 
 @pytest.mark.asyncio()
 async def test_throttle_async_custom_delay():
+    """Test that a custom delay works."""
     count = 0
 
-    @throttle(delay=0.2)
+    @athrottle(delay=0.2)
     async def throttle_custom():
         nonlocal count
         count += 1
 
+    # We call 4 times with 0.1 interval: function will only fire twice total (2nd and 4th calls ignored.)
     await repeat_async(throttle_custom, 4, 0.1)
     assert count == 2
 
@@ -84,7 +77,7 @@ async def test_throttle_async_with_await():
     """
     count = 0
 
-    @throttle(delay=3)
+    @athrottle(delay=3)
     async def foo():
         nonlocal count
         count += 1

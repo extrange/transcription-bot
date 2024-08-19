@@ -24,19 +24,21 @@ type WrappedDeco[**P, T] = Callable[
 
 
 @overload
-def athrottle[**P, R](*, delay: int = 1) -> WrappedDeco[P, R]: ...
+def athrottle[**P, R](*, delay: float = 1) -> WrappedDeco[P, R]: ...
 
 
 @overload
 def athrottle[**P, T](
-    _func: Callable[P, Coro[T]], *, delay: int = 1
+    _func: Callable[P, Coro[T]],
+    *,
+    delay: float = 1,
 ) -> Callable[P, Coro[T | None]]: ...
 
 
 def athrottle[**P, T](
     _func: Callable[P, Coro[T]] | None = None,
     *,
-    delay: int = 1,
+    delay: float = 1,
 ) -> Callable[P, Coro[T | None]] | WrappedDeco[P, T]:
     """
     Decorate a sync or async function with throttle.
@@ -48,14 +50,13 @@ def athrottle[**P, T](
         func: Callable[P, Coro[T]],
     ) -> Callable[P, Coro[T | None]]:
         last_called: float | None = None
-        result = None
         lock = asyncio.Lock()
 
         @functools.wraps(func)
         async def wrapped_async(*args: P.args, **kwargs: P.kwargs) -> T | None:
             # The lock is necessary to ensure that tasks created at the same time don't simultaneously modify last_called
             async with lock:
-                nonlocal last_called, result
+                nonlocal last_called
                 now = time.time()
                 result = None
                 if not last_called or now - last_called > delay:
