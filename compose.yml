@@ -1,13 +1,12 @@
 services:
   transcription-bot:
     container_name: transcription-bot
-    build: .
+    build:
+      dockerfile: ./Dockerfile
+      target: deployment
     restart: always
     volumes:
-      - .:/app
-      - .cache:/home/vscode/.cache # Cache models
-    # https://stackoverflow.com/questions/61333367/do-docker-composes-two-command-forms-behave-differently
-    command: sh -c "python3 -m pdm sync && python3 -m pdm run start"
+      - ./credentials:/app/credentials
     env_file:
-      - path: .env
-        required: false # Github actions uses secrets directly
+      - path: env/prod.env
+        required: true
