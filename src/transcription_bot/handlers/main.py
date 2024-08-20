@@ -53,9 +53,15 @@ async def _get_transcript(
         url,
         log_cb=partial(_log_progress, reply_msg=reply_msg),
     )
-    await reply_msg.reply("Transcribing...", buttons=[Button.inline("Cancel", pred_id)])
+    cancel_msg = cast(
+        Message,
+        await reply_msg.reply(
+            "Transcribing...", buttons=[Button.inline("Cancel", pred_id)]
+        ),
+    )
     result, status = await transcriber.get_result()
 
+    await cancel_msg.delete()
     if not result:
         if status == "canceled":
             await reply_msg.edit("Cancelled transcription.")
