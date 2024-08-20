@@ -69,7 +69,9 @@ class DownloadHandler:
 
     async def download(self) -> str:
         """
-        Start downloading content from a message.
+        Start downloading content from a message, then uploads it to Minio.
+
+        Returns the Minio URL of the uploaded file.
 
         Keeps the user informed of progress.
 

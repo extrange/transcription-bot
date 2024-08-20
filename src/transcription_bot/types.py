@@ -63,7 +63,7 @@ class ModelParamsWithoutUrl(BaseModel):
     language: str | None = "en"
     """Language of the spoken words as a language code like 'en'. Leave empty to auto detect language."""
 
-    prompt: str | None = None
+    prompt: str | None = "Hello."
     """Vocabulary: provide names, acronyms and loanwords in a list. Use punctuation for best accuracy."""
 
     offset_seconds: PositiveInt | None = None

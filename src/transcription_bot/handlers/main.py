@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import cast
 
 from python_utils import format_hhmmss
-from telethon import TelegramClient
+from telethon import Button
 from telethon.custom import Message
 from telethon.events import StopPropagation
 
@@ -14,7 +14,6 @@ from transcription_bot.file_api.minio_api import FileApi
 from transcription_bot.file_api.policy import Policy
 from transcription_bot.handlers.types import TranscriptionFailedError
 from transcription_bot.handlers.utils import (
-    is_other_user,
     notify_error,
 )
 from transcription_bot.settings import Settings
@@ -23,13 +22,16 @@ from transcription_bot.transcribers.replicate import ReplicateTranscriber
 from transcription_bot.types import ModelParamsWithoutUrl
 
 from .download import DownloadHandler
-from .utils import get_sender_name, on_update
+from .utils import notify_me, on_update
 
 _logger = logging.getLogger(__name__)
 
 
-async def _log_progress(progress: str, reply_msg: Message) -> None:
-    progress_msg = f"Processing...\n<pre>{progress}</pre>"
+async def _log_progress(
+    progress: str, reply_msg: Message, limit_lines: int = 3
+) -> None:
+    text = progress.splitlines()[-limit_lines:]
+    progress_msg = f"Processing...\n<pre>{text}</pre>"
     await on_update(reply_msg, progress_msg)
 
 
@@ -46,12 +48,17 @@ async def _get_transcript(
 
     Returns the path to the file.
     """
-    result, status = await transcriber.send_job(
+    pred_id = await transcriber.send_job(
         url,
         log_cb=partial(_log_progress, reply_msg=reply_msg),
     )
+    await reply_msg.reply("Transcribing...", buttons=[Button.inline("Cancel", pred_id)])
+    result, status = await transcriber.get_result()
 
     if not result:
+        if status == "canceled":
+            await reply_msg.edit("Cancelled transcription.")
+            raise StopPropagation
         msg = f"{status=}"
         raise TranscriptionFailedError(msg)
 
@@ -59,6 +66,37 @@ async def _get_transcript(
     with txt_file.open("w") as f:
         f.write(result)
     return txt_file
+
+
+def _prepare_api_and_transcriber() -> tuple[FileApi, BaseTranscriber]:
+    api = FileApi(
+        host=Settings.MINIO_HOST,
+        access_key=Settings.MINIO_ACCESS_KEY.get_secret_value(),
+        bucket_name=Settings.MINIO_BUCKET,
+        secret_key=Settings.MINIO_SECRET_KEY.get_secret_value(),
+        default_policy=Policy.public_read_only(),
+    )
+    transcriber: BaseTranscriber = ReplicateTranscriber(
+        Settings.MODEL_VERSION,
+        ModelParamsWithoutUrl(),
+    )
+    return api, transcriber
+
+
+async def _download(message: Message, reply_msg: Message, api: FileApi) -> str:
+    """
+    Download the file attached to the message.
+
+    Returns the
+    """
+    try:
+        handler = DownloadHandler(message, reply_msg, api)
+        url = await handler.download()
+
+    except Exception as e:
+        await notify_error(message, "Encountered error:", e)
+        raise StopPropagation from e
+    return url
 
 
 async def main_handler(message: Message) -> None:
@@ -76,25 +114,9 @@ async def main_handler(message: Message) -> None:
 
     reply_msg = cast(Message, await message.reply("Processing...", silent=True))
 
-    api = FileApi(
-        host=Settings.MINIO_HOST,
-        access_key=Settings.MINIO_ACCESS_KEY.get_secret_value(),
-        bucket_name=Settings.MINIO_BUCKET,
-        secret_key=Settings.MINIO_SECRET_KEY.get_secret_value(),
-        default_policy=Policy.public_read_only(),
-    )
-    transcriber: BaseTranscriber = ReplicateTranscriber(
-        Settings.MODEL_VERSION,
-        ModelParamsWithoutUrl(),
-    )
+    api, transcriber = _prepare_api_and_transcriber()
 
-    try:
-        handler = DownloadHandler(message, reply_msg, api)
-        url = await handler.download()
-
-    except Exception as e:
-        await notify_error(message, "Encountered error:", e)
-        raise StopPropagation from e
+    url = await _download(message, reply_msg, api)
 
     with tempfile.TemporaryDirectory() as temp_dir:
         start = time.time()
@@ -105,6 +127,8 @@ async def main_handler(message: Message) -> None:
                 url,
                 Path(temp_dir),
             )
+        except StopPropagation:
+            raise
         except Exception as e:
             await notify_error(message, "Transcription failed", e)
             raise StopPropagation from e
@@ -114,12 +138,5 @@ async def main_handler(message: Message) -> None:
         await message.reply(file=txt_file.open("rb"))
 
         # Notify me
-        log_msg = f"Completed transcription for {get_sender_name(message)}: {done_txt}"
-        _logger.info(log_msg)
-        if is_other_user(message):
-            await cast(TelegramClient, message.client).send_message(
-                Settings.MY_USERNAME.get_secret_value(),
-                log_msg,
-                file=txt_file.open("rb"),
-                silent=True,
-            )
+        log_msg = f"Completed transcription: {done_txt}"
+        await notify_me(message, log_msg, txt_file)

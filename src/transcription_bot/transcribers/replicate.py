@@ -32,15 +32,17 @@ class ReplicateTranscriber(BaseTranscriber):
         """Prepare a prediction pipeline."""
         self.model_version = version
         self.params = params
+        self.prediction = None
         super().__init__()
 
     def _construct_model(self) -> replicate.version.Version:
         model = replicate.models.get(self.model_name)
         return model.versions.get(self.model_version)
 
-    @staticmethod
-    def _is_prediction_running(prediction: Prediction) -> bool:
-        return prediction.status in ("starting", "processing")
+    def _is_prediction_running(self) -> bool:
+        if not self.prediction:
+            return False
+        return self.prediction.status in ("starting", "processing")
 
     async def _update_progress(
         self,
@@ -50,7 +52,7 @@ class ReplicateTranscriber(BaseTranscriber):
     ) -> None:
         self.tasks = set()
 
-        while ReplicateTranscriber._is_prediction_running(prediction):
+        while self._is_prediction_running():
             logs = prediction.logs
             _logger.info("logs: %s", logs)
             task = asyncio.create_task(
@@ -67,14 +69,35 @@ class ReplicateTranscriber(BaseTranscriber):
     def _process_output(output: Output) -> str:
         return "\n\n".join([f"{s.speaker}: {s.text}" for s in output.segments])
 
+    @staticmethod
+    async def cancel(pred_id: str) -> None:
+        """Cancel a running prediction."""
+        await replicate.predictions.async_cancel(pred_id)
+
+    async def get_result(self) -> tuple[str | None, PredictionStatus]:
+        """Wait for result to be done."""
+        if not self.prediction:
+            msg = "No prediction running!"
+            raise ValueError(msg)
+
+        await self.prediction.async_wait()
+        processed_output = (
+            self._process_output(Output.model_validate(self.prediction.output))
+            if self.prediction.output
+            else None
+        )
+        return (processed_output, self.prediction.status)
+
     async def send_job(
         self,
         file_url: str,
         log_cb: Callable[Concatenate[str, ...], Coroutine] | None,
         update_interval: int = 3,
-    ) -> tuple[str | None, PredictionStatus]:
+    ) -> str:
         """
         Start a transcription job asynchronously.
+
+        Returns the id of the prediction that can be used for cancellation.
 
         Optionally, provide a callback which will be called with the current log lines, called every `update_interval` seconds.
         """
@@ -102,7 +125,6 @@ class ReplicateTranscriber(BaseTranscriber):
             return prediction
 
         prediction = await get_prediction()
-
         _logger.info("Prediction created for file %s", file_url)
 
         if log_cb:
@@ -111,10 +133,5 @@ class ReplicateTranscriber(BaseTranscriber):
             )
             _logger.info("Created task for logging callback.")
 
-        await prediction.async_wait()
-        processed_output = (
-            self._process_output(Output.model_validate(prediction.output))
-            if prediction.output
-            else None
-        )
-        return (processed_output, prediction.status)
+        self.prediction = prediction
+        return prediction.id

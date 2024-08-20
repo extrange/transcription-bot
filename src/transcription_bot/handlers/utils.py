@@ -71,3 +71,24 @@ def get_sender_name(message: Message) -> str:
 def ffprobe_get_duration_s(path: Path) -> float:
     """Get duration of a media file."""
     return float(ffmpeg.probe(path)["format"]["duration"])
+
+
+async def notify_me(message: Message, text: str, file: Path | None) -> None:
+    """
+    Notify me with a message, optionally including a file.
+
+    Includes the sender's name.
+    """
+    if not is_other_user(message):
+        return
+
+    sender = get_sender_name(message)
+    log_msg = f"Notification from {sender}:\n{text}"
+    _logger.info(log_msg)
+
+    await cast(TelegramClient, message.client).send_message(
+        Settings.MY_USERNAME.get_secret_value(),
+        log_msg,
+        file=file.open("rb") if file else None,  # pyright: ignore[reportArgumentType]
+        silent=True,
+    )
