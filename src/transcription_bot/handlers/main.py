@@ -12,6 +12,7 @@ from telethon.events import StopPropagation
 
 from transcription_bot.file_api.minio_api import FileApi
 from transcription_bot.file_api.policy import Policy
+from transcription_bot.handlers.summary import generate_summary
 from transcription_bot.handlers.types import TranscriptionFailedError
 from transcription_bot.handlers.utils import (
     notify_error,
@@ -40,13 +41,13 @@ async def _get_transcript(
     reply_msg: Message,
     url: str,
     save_dir: Path,
-) -> Path:
+) -> tuple[Path, str]:
     """
     Transcribe an audio file that was uploaded to file storage and save the result as a txt file.
 
     `save_dir`: Temporary directory which to store the text file.
 
-    Returns the path to the file.
+    Returns tuple of (path to the file, transcript).
     """
     pred_id = await transcriber.send_job(
         url,
@@ -65,7 +66,7 @@ async def _get_transcript(
     txt_file = Path(save_dir) / f"{int(time.time())}.txt"
     with txt_file.open("w") as f:
         f.write(result)
-    return txt_file
+    return txt_file, result
 
 
 def _prepare_api_and_transcriber() -> tuple[FileApi, BaseTranscriber]:
@@ -121,7 +122,7 @@ async def main_handler(message: Message) -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         start = time.time()
         try:
-            txt_file = await _get_transcript(
+            txt_file, transcript = await _get_transcript(
                 transcriber,
                 reply_msg,
                 url,
@@ -140,3 +141,17 @@ async def main_handler(message: Message) -> None:
         # Notify me
         log_msg = f"Completed transcription: {done_txt}"
         await notify_me(message, log_msg, txt_file)
+
+        # Generate transcript
+        minutes_msg = cast(Message, await message.reply("Generating minutes..."))
+        minutes = await generate_summary(transcript)
+        if not minutes:
+            await notify_error(message, "Failed to generate minutes!")
+            raise StopPropagation
+
+        with Path(temp_dir) / f"{int(time.time())}_minutes.txt" as f:
+            f.write_text(minutes)
+            await minutes_msg.edit("Minutes generated.")
+            await message.reply(file=f)
+            summary_done_msg = "Completed summary."
+            await notify_me(message, summary_done_msg, f)

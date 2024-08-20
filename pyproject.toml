@@ -24,6 +24,7 @@ minio = "^7.2.7"
 telethon = "^1.36.0"
 ffmpeg-python = "^0.2.0"
 python-utils = {git = "https://github.com/extrange/python-utils"}
+openai = "^1.41.1"
 
 [tool.poetry.group.dev.dependencies]
 ipykernel = "^6.29.5"
