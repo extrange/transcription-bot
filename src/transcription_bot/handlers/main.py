@@ -157,7 +157,7 @@ async def main_handler(message: Message) -> None:
 
         with Path(temp_dir) / f"{int(time.time())}_minutes.txt" as f:
             f.write_text(minutes)
-            await minutes_msg.edit("Minutes generated.")
+            await minutes_msg.delete()
             await message.reply(file=f)
             summary_done_msg = "Completed summary."
             await notify_me(message, summary_done_msg, f)
