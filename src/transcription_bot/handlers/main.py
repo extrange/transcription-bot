@@ -138,7 +138,7 @@ async def main_handler(message: Message) -> None:
         await notify_error(message, "Transcription failed", e)
         raise StopPropagation from e
 
-    done_txt = f"Transcription done in {format_hhmmss(time.time() - start)}."
+    done_txt = f"Transcription done in {format_hhmmss(time.time() - start)}. Sending transcript..."
     await reply_msg.edit(done_txt)
 
     # Send transcript
