@@ -8,6 +8,7 @@ import replicate
 import replicate.version
 from replicate.prediction import Prediction
 
+from transcription_bot.handlers.types import TranscriptionTimeoutError
 from transcription_bot.transcribers.base import BaseTranscriber
 from transcription_bot.types import (
     ModelParams,
@@ -74,13 +75,28 @@ class ReplicateTranscriber(BaseTranscriber):
         """Cancel a running prediction."""
         await replicate.predictions.async_cancel(pred_id)
 
-    async def get_result(self) -> tuple[str | None, PredictionStatus]:
+    async def get_result(
+        self, max_attempts: int = 3
+    ) -> tuple[str | None, PredictionStatus]:
         """Wait for result to be done."""
         if not self.prediction:
             msg = "No prediction running!"
             raise ValueError(msg)
 
-        await self.prediction.async_wait()
+        success = False
+        attempts = 0
+        while not success:
+            if attempts > max_attempts:
+                raise TranscriptionTimeoutError
+            try:
+                await self.prediction.async_wait()
+                success = True
+            except httpx.ConnectTimeout:
+                _logger.info(
+                    "Failed transcription due to httpx.ConnectTimeout, retrying"
+                )
+                attempts += 1
+
         processed_output = (
             self._process_output(Output.model_validate(self.prediction.output))
             if self.prediction.output

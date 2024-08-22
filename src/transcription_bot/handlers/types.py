@@ -12,3 +12,7 @@ class ParseError(Exception):
 
 class TranscriptionFailedError(Exception):
     """Prediction failed."""
+
+
+class TranscriptionTimeoutError(Exception):
+    """Failed > 3 attempts to transcribe."""
