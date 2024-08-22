@@ -40,14 +40,13 @@ async def _get_transcript(
     transcriber: BaseTranscriber,
     reply_msg: Message,
     url: str,
-    save_dir: Path,
-) -> tuple[Path, str]:
+) -> str:
     """
-    Transcribe an audio file that was uploaded to file storage and save the result as a txt file.
+    Transcribe and diarize an audio file that was uploaded to file storage.
 
-    `save_dir`: Temporary directory which to store the text file.
+    Returns the transcript.
 
-    Returns tuple of (path to the file, transcript).
+    Raises `StopPropagation` if job result is `canceled`.
     """
     pred_id = await transcriber.send_job(
         url,
@@ -69,10 +68,7 @@ async def _get_transcript(
         msg = f"{status=}"
         raise TranscriptionFailedError(msg)
 
-    txt_file = Path(save_dir) / f"{int(time.time())}.txt"
-    with txt_file.open("w") as f:
-        f.write(result)
-    return txt_file, result
+    return result
 
 
 def _prepare_api_and_transcriber() -> tuple[FileApi, BaseTranscriber]:
@@ -90,20 +86,22 @@ def _prepare_api_and_transcriber() -> tuple[FileApi, BaseTranscriber]:
     return api, transcriber
 
 
-async def _download(message: Message, reply_msg: Message, api: FileApi) -> str:
+async def _download(
+    message: Message, reply_msg: Message, api: FileApi
+) -> tuple[str, str]:
     """
     Download the file attached to the message.
 
-    Returns the
+    Returns tuple of [Minio URL, Path.stem of the downloaded file]
     """
     try:
         handler = DownloadHandler(message, reply_msg, api)
-        url = await handler.download()
+        url, filename = await handler.download()
 
     except Exception as e:
         await notify_error(message, "Encountered error:", e)
         raise StopPropagation from e
-    return url
+    return url, filename
 
 
 async def main_handler(message: Message) -> None:
@@ -123,41 +121,47 @@ async def main_handler(message: Message) -> None:
 
     api, transcriber = _prepare_api_and_transcriber()
 
-    url = await _download(message, reply_msg, api)
+    url, filename = await _download(message, reply_msg, api)
+    _logger.info("user_filename: %s", filename)
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        start = time.time()
-        try:
-            txt_file, transcript = await _get_transcript(
-                transcriber,
-                reply_msg,
-                url,
-                Path(temp_dir),
-            )
-        except StopPropagation:
-            raise
-        except Exception as e:
-            await notify_error(message, "Transcription failed", e)
-            raise StopPropagation from e
+    # Generate transcript
+    start = time.time()
+    try:
+        transcript = await _get_transcript(
+            transcriber,
+            reply_msg,
+            url,
+        )
+    except StopPropagation:
+        raise
+    except Exception as e:
+        await notify_error(message, "Transcription failed", e)
+        raise StopPropagation from e
 
-        done_txt = f"Transcription done in {format_hhmmss(time.time() - start)}."
-        await reply_msg.edit(done_txt)
-        await message.reply(file=txt_file.open("rb"))
+    done_txt = f"Transcription done in {format_hhmmss(time.time() - start)}."
+    await reply_msg.edit(done_txt)
+
+    # Send transcript
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
+        f = Path(temp_dir) / f"{filename}.txt"
+        f.write_text(transcript)
+        await message.reply(file=f)
 
         # Notify me
         log_msg = f"Completed transcription: {done_txt}"
-        await notify_me(message, log_msg, txt_file)
+        await notify_me(message, log_msg, f)
 
-        # Generate transcript
-        minutes_msg = cast(Message, await message.reply("Generating minutes..."))
-        minutes = await generate_summary(transcript)
-        if not minutes:
-            await notify_error(message, "Failed to generate minutes!")
-            raise StopPropagation
+    # Generate minutes
+    gen_minutes_msg = cast(Message, await message.reply("Generating minutes..."))
+    minutes = await generate_summary(transcript)
+    if not minutes:
+        await notify_error(message, "Failed to generate minutes!")
+        raise StopPropagation
 
-        with Path(temp_dir) / f"{int(time.time())}_minutes.txt" as f:
-            f.write_text(minutes)
-            await minutes_msg.delete()
-            await message.reply(file=f)
-            summary_done_msg = "Completed summary."
-            await notify_me(message, summary_done_msg, f)
+    # Send minutes
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
+        f = Path(temp_dir) / f"{filename}_minutes.txt"
+        f.write_text(minutes)
+        await gen_minutes_msg.delete()
+        await message.reply(file=f)
+        await notify_me(message, "Completed summary.", f)

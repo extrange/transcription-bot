@@ -77,6 +77,8 @@ async def notify_me(message: Message, text: str, file: Path | None) -> None:
     """
     Notify me with a message, optionally including a file.
 
+    Also logs the message.
+
     Includes the sender's name.
     """
     if not is_other_user(message):

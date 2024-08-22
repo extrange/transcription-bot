@@ -58,6 +58,8 @@ class DownloadHandler:
         Upload file using a BaseApi class.
 
         Suffixes the current timestamp to the filename, for the destination filename.
+
+        Returns url to uploaded file.
         """
         now = datetime.now(tz=ZoneInfo(Settings.TZ)).isoformat().replace(":", "-")
         destination_name = f"{path.stem}_{now}{path.suffix or ""}"
@@ -67,11 +69,11 @@ class DownloadHandler:
         await self.reply_msg.edit(orig_reply_txt + "\nUpload complete.")
         return url
 
-    async def download(self) -> str:
+    async def download(self) -> tuple[str, str]:
         """
         Start downloading content from a message, then uploads it to Minio.
 
-        Returns the Minio URL of the uploaded file.
+        Returns tuple of [Minio URL of the uploaded file, Path.stem of the downloaded file.].
 
         Keeps the user informed of progress.
 
@@ -79,7 +81,7 @@ class DownloadHandler:
         """
         with tempfile.TemporaryDirectory() as temp_dir:
             dl_path = await self._download_file(Path(temp_dir))
-            return await self._upload_file(dl_path)
+            return (await self._upload_file(dl_path), dl_path.stem)
 
     def _on_download_update(
         self,
@@ -111,10 +113,11 @@ class DownloadHandler:
         file = cast(File, message.file)
 
         file_size = self._get_file_size(file)
-        file_name = self._get_file_name(file)
+        file_name = self._get_file_name(file).strip("' ")  # Strip extraneous quotes
 
         # Inform user we are starting download
         prefix = f"Downloading {file_name}, ({file_size})..."
+        _logger.info(prefix)
         await self.reply_msg.edit(prefix)
 
         # Download file
