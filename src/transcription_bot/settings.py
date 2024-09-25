@@ -22,6 +22,7 @@ class _Settings(BaseSettings):
     MODEL_VERSION: str
     OPENAI_API_KEY: SecretStr
     OPENAI_MODEL_NAME: str = "gpt-4o"
+    HF_TOKEN: SecretStr
 
     TZ: str
     LOG_LEVEL: str = "INFO"

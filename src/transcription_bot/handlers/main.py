@@ -19,8 +19,10 @@ from transcription_bot.handlers.utils import (
 )
 from transcription_bot.settings import Settings
 from transcription_bot.transcribers.base import BaseTranscriber
-from transcription_bot.transcribers.replicate import ReplicateTranscriber
-from transcription_bot.types import ModelParamsWithoutUrl
+from transcription_bot.transcribers.replicate.thomasmol import (
+    ThomasmolParamsWithoutUrl,
+    ThomasmolTranscriber,
+)
 
 from .download import DownloadHandler
 from .utils import notify_me, on_update
@@ -79,9 +81,9 @@ def _prepare_api_and_transcriber() -> tuple[FileApi, BaseTranscriber]:
         secret_key=Settings.MINIO_SECRET_KEY.get_secret_value(),
         default_policy=Policy.public_read_only(),
     )
-    transcriber: BaseTranscriber = ReplicateTranscriber(
+    transcriber: BaseTranscriber = ThomasmolTranscriber(
         Settings.MODEL_VERSION,
-        ModelParamsWithoutUrl(),
+        ThomasmolParamsWithoutUrl(),
     )
     return api, transcriber
 
@@ -106,7 +108,6 @@ async def _download(
 
 async def main_handler(message: Message) -> None:
     """Handle all incoming messages, including /start and audio/video files."""
-    _logger.debug("test")
     if not DownloadHandler.should_handle_message(message):
         reply_msg = cast(
             Message,
@@ -122,7 +123,7 @@ async def main_handler(message: Message) -> None:
     api, transcriber = _prepare_api_and_transcriber()
 
     url, filename = await _download(message, reply_msg, api)
-    _logger.info("user_filename: %s", filename)
+    _logger.info("Filename from user: %s", filename)
 
     # Generate transcript
     start = time.time()

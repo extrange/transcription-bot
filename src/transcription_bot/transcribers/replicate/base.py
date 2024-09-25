@@ -1,7 +1,8 @@
 import asyncio
 import logging
+from abc import abstractmethod
 from collections.abc import Callable, Coroutine
-from typing import Concatenate
+from typing import Any, Concatenate
 
 import httpx
 import replicate
@@ -11,9 +12,6 @@ from replicate.prediction import Prediction
 from transcription_bot.handlers.types import TranscriptionTimeoutError
 from transcription_bot.transcribers.base import BaseTranscriber
 from transcription_bot.types import (
-    ModelParams,
-    ModelParamsWithoutUrl,
-    Output,
     PredictionStatus,
 )
 
@@ -24,20 +22,34 @@ class MaxAttemptsExceededError(Exception):
     """Too many attempts to connect to replicate failed."""
 
 
-class ReplicateTranscriber(BaseTranscriber):
-    """Uses thomasmol/whisper-diarization."""
+class ReplicateTranscriberBase(BaseTranscriber):
+    """Base class for transcription using Replicate models."""
 
-    model_name = "thomasmol/whisper-diarization"
-
-    def __init__(self, version: str, params: ModelParamsWithoutUrl) -> None:
+    def __init__(self, version: str) -> None:
         """Prepare a prediction pipeline."""
         self.model_version = version
-        self.params = params
         self.prediction = None
         super().__init__()
 
+    @abstractmethod
+    def _get_model_name(self) -> str:
+        """Return the model name as found on Replicate."""
+
+    @abstractmethod
+    def _get_model_params(self, file_url: str) -> dict[str, Any]:
+        """
+        Construct the model parameters for the model.
+
+        file_url: URL of the uploaded file to be transcribed, accessed by Replicate.
+        """
+
+    @abstractmethod
+    def _process_output(self, model_output: Any) -> str:
+        """Process the output from a model."""
+
     def _construct_model(self) -> replicate.version.Version:
-        model = replicate.models.get(self.model_name)
+        model = replicate.models.get(self._get_model_name())
+        _logger.info("Constructed Replicate model %s", model.name)
         return model.versions.get(self.model_version)
 
     def _is_prediction_running(self) -> bool:
@@ -55,7 +67,7 @@ class ReplicateTranscriber(BaseTranscriber):
 
         while self._is_prediction_running():
             logs = prediction.logs
-            _logger.info("logs: %s", logs)
+            _logger.info("Prediciton logs: %s", logs)
             task = asyncio.create_task(
                 log_cb(f"{prediction.status}: {logs or "Waiting in queue..."}")
             )
@@ -65,10 +77,6 @@ class ReplicateTranscriber(BaseTranscriber):
             await prediction.async_reload()
 
         _logger.info("_update_progress exited.")
-
-    @staticmethod
-    def _process_output(output: Output) -> str:
-        return "\n\n".join([f"{s.speaker}: {s.text}" for s in output.segments])
 
     @staticmethod
     async def cancel(pred_id: str) -> None:
@@ -97,8 +105,10 @@ class ReplicateTranscriber(BaseTranscriber):
                 )
                 attempts += 1
 
+        _logger.info("Prediction metrics: %s", self.prediction.metrics)
+
         processed_output = (
-            self._process_output(Output.model_validate(self.prediction.output))
+            self._process_output(self.prediction.output)
             if self.prediction.output
             else None
         )
@@ -118,7 +128,6 @@ class ReplicateTranscriber(BaseTranscriber):
         Optionally, provide a callback which will be called with the current log lines, called every `update_interval` seconds.
         """
         version = self._construct_model()
-        params_with_url = ModelParams(**self.params.model_dump(), file_url=file_url)
 
         async def get_prediction(max_attempts: int = 3) -> Prediction:
             attempts = 0
@@ -128,8 +137,7 @@ class ReplicateTranscriber(BaseTranscriber):
                     raise MaxAttemptsExceededError
                 try:
                     prediction = await replicate.predictions.async_create(
-                        version,
-                        input=params_with_url.model_dump(exclude_none=True),
+                        version, input=self._get_model_params(file_url)
                     )
 
                 except httpx.ConnectTimeout:

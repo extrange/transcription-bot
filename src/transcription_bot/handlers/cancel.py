@@ -4,7 +4,7 @@ from telethon import events
 from telethon.events import StopPropagation
 
 from transcription_bot.handlers.utils import notify_error
-from transcription_bot.transcribers.replicate import ReplicateTranscriber
+from transcription_bot.transcribers.replicate.thomasmol import ThomasmolTranscriber
 
 from .utils import get_sender_name
 
@@ -24,7 +24,7 @@ async def handle_cancel(event: events.CallbackQuery.Event) -> None:
     _logger.info("Received callback data from %s: %s", sender, data)
 
     try:
-        await ReplicateTranscriber.cancel(data.decode())
+        await ThomasmolTranscriber.cancel(data.decode())
     except Exception as e:  # noqa: BLE001
         await notify_error(
             message,
