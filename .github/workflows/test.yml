@@ -21,7 +21,7 @@ jobs:
       # Options: https://github.com/docker/build-push-action
       # Note: uses the Git reference as context, so file mutations prior are ignored
       - name: Build the `test` target
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           push: false
           target: test
