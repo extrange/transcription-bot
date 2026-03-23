@@ -20,8 +20,9 @@ class _Settings(BaseSettings):
     MINIO_HOST: str
     MINIO_BUCKET: str
     MODEL_VERSION: str
+    OPENAI_BASE_URL: str
     OPENAI_API_KEY: SecretStr
-    OPENAI_MODEL_NAME: str = "gpt-4o"
+    OPENAI_MODEL_NAME: str
     HF_TOKEN: SecretStr
 
     TZ: str
