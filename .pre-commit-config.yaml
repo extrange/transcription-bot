@@ -24,14 +24,6 @@ repos:
       - id: poetry-check
       - id: poetry-lock
       - id: poetry-install
-  - repo: local
-    hooks:
-      - id: trufflehog
-        name: TruffleHog
-        description: Scan the latest commit for any secrets
-        entry: bash -c 'trufflehog git file://. --since-commit HEAD --only-verified --fail --no-update'
-        language: system
-        stages: ["commit", "push"]
   - repo: https://github.com/RobertCraigie/pyright-python
     rev: v1.1.376
     hooks:

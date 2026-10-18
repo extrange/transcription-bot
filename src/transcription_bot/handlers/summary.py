@@ -20,5 +20,7 @@ async def generate_summary(transcript: str) -> str | None:
                 "content": _MODEL_PROMPT.format(text=transcript),
             },
         ],
+        # Do not return the model's reasoning tokens alongside the minutes.
+        extra_body={"reasoning": {"exclude": True}},
     )
     return completion.choices[0].message.content
