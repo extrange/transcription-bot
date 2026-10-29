@@ -25,8 +25,13 @@ class MaxAttemptsExceededError(Exception):
 class ReplicateTranscriberBase(BaseTranscriber):
     """Base class for transcription using Replicate models."""
 
-    def __init__(self, version: str) -> None:
-        """Prepare a prediction pipeline."""
+    def __init__(self, version: str | None = None) -> None:
+        """
+        Prepare a prediction pipeline.
+
+        version: pinned Replicate model version hash. Pass `None` (or "latest") to
+                 always use the model's latest version.
+        """
         self.model_version = version
         self.prediction = None
         super().__init__()
@@ -49,7 +54,20 @@ class ReplicateTranscriberBase(BaseTranscriber):
 
     def _construct_model(self) -> replicate.version.Version:
         model = replicate.models.get(self._get_model_name())
-        _logger.info("Constructed Replicate model %s", model.name)
+
+        if not self.model_version or self.model_version == "latest":
+            version = model.latest_version
+            if version is None:
+                msg = f"Replicate model {model.id} has no versions"
+                raise ValueError(msg)
+            _logger.info(
+                "Constructed Replicate model %s (latest %s)", model.id, version.id
+            )
+            return version
+
+        _logger.info(
+            "Constructed Replicate model %s (pinned %s)", model.id, self.model_version
+        )
         return model.versions.get(self.model_version)
 
     def _is_prediction_running(self) -> bool:

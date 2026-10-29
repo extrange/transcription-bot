@@ -40,7 +40,7 @@ class Output(BaseModel):
 class InsanelyFastWhisper(ReplicateTranscriberBase):
     """Uses vaibhavs10/incredibly-fast-whisper."""
 
-    def __init__(self, version: str, params: ParamsWithoutUrl) -> None:
+    def __init__(self, version: str | None, params: ParamsWithoutUrl) -> None:
         """Prepare a prediction pipeline."""
         self.params = params
         super().__init__(version)

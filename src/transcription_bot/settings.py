@@ -19,7 +19,7 @@ class _Settings(BaseSettings):
     MINIO_SECRET_KEY: SecretStr
     MINIO_HOST: str
     MINIO_BUCKET: str
-    MODEL_VERSION: str
+    MODEL_VERSION: str = "latest"
     OPENAI_BASE_URL: str
     OPENAI_API_KEY: SecretStr
     OPENAI_MODEL_NAME: str

@@ -1,6 +1,6 @@
-from typing import Any, Literal
+from typing import Any
 
-from pydantic import BaseModel, PositiveInt
+from pydantic import BaseModel
 
 from transcription_bot.transcribers.replicate.base import ReplicateTranscriberBase
 
@@ -17,19 +17,19 @@ class Word(BaseModel):
 class Segment(BaseModel):
     """Contains speaker information."""
 
-    avg_logprob: float
+    avg_logprob: float | None = None
     end: float
     speaker: str
     start: float
     text: str
-    words: list[Word]
+    words: list[Word] = []
 
 
 class Output(BaseModel):
     """Output from thomasmol/whisper-diarization."""
 
-    language: str
-    num_speakers: int
+    language: str | None = None
+    num_speakers: int | None = None
     segments: list[Segment]
 
 
@@ -39,14 +39,9 @@ class ThomasmolParamsWithoutUrl(BaseModel):
 
     Sane defaults set.
 
-    Removed file and file_string.
+    Removed file and file_string, and the inputs that newer versions no longer
+    accept (`group_segments`, `transcript_output_format`, `offset_seconds`).
     """
-
-    group_segments: bool = True
-    """Group segments of same speaker shorter apart than 2 seconds"""
-
-    transcript_output_format: Literal["words_only", "segments_only", "both"] = "both"
-    """Specify the format of the transcript output: individual words with timestamps, full text of segments, or a combination of both."""
 
     num_speakers: int | None = None
     """Number of speakers, leave empty to autodetect."""
@@ -60,9 +55,6 @@ class ThomasmolParamsWithoutUrl(BaseModel):
     prompt: str | None = "Hello."
     """Vocabulary: provide names, acronyms and loanwords in a list. Use punctuation for best accuracy."""
 
-    offset_seconds: PositiveInt | None = None
-    """Specify the format of the transcript output: individual words with timestamps, full text of segments, or a combination of both."""
-
 
 class ThomasmolParams(ThomasmolParamsWithoutUrl):
     """Same as ModelParamsWithoutUrl but with the file_url."""
@@ -72,9 +64,9 @@ class ThomasmolParams(ThomasmolParamsWithoutUrl):
 
 
 class ThomasmolTranscriber(ReplicateTranscriberBase):
-    """Uses thomasmol/whisper-diarization."""
+    """Uses thomasmol/whisper-diarization, on its latest version unless pinned."""
 
-    def __init__(self, version: str, params: ThomasmolParamsWithoutUrl) -> None:
+    def __init__(self, version: str | None, params: ThomasmolParamsWithoutUrl) -> None:
         """Prepare a prediction pipeline."""
         self.params = params
         super().__init__(version)
