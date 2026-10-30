@@ -55,3 +55,6 @@ venv = ".venv"
 # https://docs.pytest.org/en/latest/explanation/goodpractices.html#which-import-mode
 addopts = ["--import-mode=importlib"]
 asyncio_mode = "auto"
+markers = [
+    "integration: needs a running MinIO instance (set the MINIO_* environment variables)",
+]

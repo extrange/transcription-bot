@@ -35,6 +35,7 @@ def test_file_path(tmp_path: Path):
     return _path
 
 
+@pytest.mark.integration()
 def test_bucket_created_if_not_exists(partial_client: partial[FileApi]):
     """Create a test bucket"""
     bucket_name = str(time.time())
@@ -53,6 +54,7 @@ def test_policy_replaced_correctly():
     ) != json.dumps(Policy.public_read_only())
 
 
+@pytest.mark.integration()
 def test_minio_upload(client: FileApi, test_file_path: Path):
     object_name = "my-test-file"
     client.upload_file(test_file_path, object_name)
