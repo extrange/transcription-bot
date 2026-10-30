@@ -7,7 +7,6 @@ from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 from humanize import naturalsize
-from python_utils import athrottle, format_hhmmss
 from telethon import TelegramClient
 from telethon.custom import Message
 from telethon.tl.custom.file import File
@@ -19,6 +18,8 @@ from transcription_bot.handlers.utils import (
     is_other_user,
 )
 from transcription_bot.settings import Settings
+from transcription_bot.utils.athrottle import athrottle
+from transcription_bot.utils.format_hhmmss import format_hhmmss
 
 from .utils import get_sender_name, on_update
 

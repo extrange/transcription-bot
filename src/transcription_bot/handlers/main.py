@@ -5,7 +5,6 @@ from functools import partial
 from pathlib import Path
 from typing import cast
 
-from python_utils import format_hhmmss
 from telethon import Button
 from telethon.custom import Message
 from telethon.events import StopPropagation
@@ -23,6 +22,7 @@ from transcription_bot.transcribers.replicate.thomasmol import (
     ThomasmolParamsWithoutUrl,
     ThomasmolTranscriber,
 )
+from transcription_bot.utils.format_hhmmss import format_hhmmss
 
 from .download import DownloadHandler
 from .utils import notify_me, on_update
