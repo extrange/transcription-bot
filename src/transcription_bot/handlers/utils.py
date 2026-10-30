@@ -1,9 +1,11 @@
+import json
 import logging
+import shutil
+import subprocess
 import traceback
 from pathlib import Path
 from typing import cast
 
-import ffmpeg
 from telethon import TelegramClient, errors
 from telethon.custom import Message
 from telethon.types import User
@@ -70,7 +72,26 @@ def get_sender_name(message: Message) -> str:
 
 def ffprobe_get_duration_s(path: Path) -> float:
     """Get duration of a media file."""
-    return float(ffmpeg.probe(path)["format"]["duration"])
+    # Resolve to an absolute path so the security linter sees a trusted binary
+    ffprobe = shutil.which("ffprobe") or "ffprobe"
+
+    proc = subprocess.run(  # noqa: S603 - fixed argument list, no shell involved
+        [
+            ffprobe,
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "json",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    return float(json.loads(proc.stdout)["format"]["duration"])
 
 
 async def notify_me(message: Message, text: str, file: Path | None) -> None:

@@ -22,7 +22,6 @@ replicate = "^0.31.0"
 humanize = "^4.10.0"
 minio = "^7.2.7"
 telethon = "^1.36.0"
-ffmpeg-python = "^0.2.0"
 python-utils = {git = "https://github.com/extrange/python-utils"}
 openai = "^1.41.1"
 
