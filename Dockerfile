@@ -1,6 +1,6 @@
 FROM ghcr.io/astral-sh/uv:0.13.6 AS uv
 
-FROM python:3.15-slim AS base
+FROM python:3.15-slim@sha256:94d3426f1def7db4a106a232ac121bfd975393e5dfd40a619b955fae45fe7913 AS base
 
 # Inherited by all stages
 ENV APP_DIR=/app
