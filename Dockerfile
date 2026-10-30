@@ -15,21 +15,6 @@ RUN apt-get update && \
 
 #-------------------
 
-FROM base AS dev
-
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    sqlite3
-
-# trufflehog: secret scanning
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
-
-# Poetry & dependencies are installed in the devcontainer via postCreateCommand
-
-#-------------------
-
 FROM base AS builder
 
 RUN pip install --no-cache-dir poetry=="$POETRY_VERSION"
