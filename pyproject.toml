@@ -11,9 +11,7 @@ requires-python = ">=3.12,<4.0"
 dependencies = [
     "pydantic>=2.8.2,<3.0.0",
     "pydantic-settings>=2.4.0,<3.0.0",
-    "cryptg>=0.4.0,<0.5.0",
-    "uvloop>=0.20.0,<0.21.0",
-    "pillow>=10.4.0,<11.0.0",
+    "uvloop>=0.23.0,<0.24.0",
     "hachoir>=3.3.0,<4.0.0",
     "pysubs2>=1.7.3,<2.0.0",
     "replicate>=0.31.0,<0.32.0",
