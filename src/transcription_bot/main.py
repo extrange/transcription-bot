@@ -1,7 +1,5 @@
 """Setup client and start the bot proper."""
 
-from typing import NoReturn
-
 import uvloop
 from telethon import TelegramClient
 
@@ -10,7 +8,7 @@ from .settings import Settings
 from .utils.logger import setup_logging
 
 
-async def main() -> NoReturn:
+async def main() -> None:
     """Start the bot."""
     setup_logging()
     client = TelegramClient(

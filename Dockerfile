@@ -1,7 +1,8 @@
+FROM ghcr.io/astral-sh/uv:0.13.6 AS uv
+
 FROM python:3.12-slim AS base
 
 # Inherited by all stages
-ENV POETRY_VERSION=1.8.3
 ENV APP_DIR=/app
 ENV TZ=Asia/Singapore
 
@@ -13,19 +14,26 @@ RUN apt-get update && \
     ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
+# uv is used to install and manage dependencies
+COPY --from=uv /uv /bin/uv
+
 #-------------------
 
 FROM base AS builder
 
-RUN pip install --no-cache-dir poetry=="$POETRY_VERSION"
+# uv fetches the `python-utils` git dependency, which needs git
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    git && \
+    rm -rf /var/lib/apt/lists/*
 
 # These variables will apply to the descendant stage (test) as well
 
-# Poetry
-ENV POETRY_VIRTUALENVS_IN_PROJECT=true \
-    POETRY_VIRTUALENVS_CREATE=1 \
-    POETRY_NO_INTERACTION=1 \
-    POETRY_CACHE_DIR=/tmp/poetry_cache
+# uv
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_PROJECT_ENVIRONMENT=$APP_DIR/.venv
 
 ENV PATH="$APP_DIR/.venv/bin:$PATH" \
     PYTHONPATH=$APP_DIR/src \
@@ -33,10 +41,10 @@ ENV PATH="$APP_DIR/.venv/bin:$PATH" \
 
 WORKDIR $APP_DIR
 
-COPY poetry.lock pyproject.toml ./
+COPY uv.lock pyproject.toml ./
 
-RUN --mount=type=cache,target=${POETRY_CACHE_DIR} \
-    poetry install --without=dev --no-root
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-install-project
 
 #--------------------
 
@@ -44,14 +52,14 @@ RUN --mount=type=cache,target=${POETRY_CACHE_DIR} \
 FROM builder AS test
 
 # Install dev dependencies
-RUN --mount=type=cache,target=${POETRY_CACHE_DIR} \
-    poetry install --no-root
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project
 
 WORKDIR $APP_DIR
 
 COPY . $APP_DIR
 
-# In the venv created by poetry, from PATH
+# In the venv created by uv, from PATH
 RUN pyright && pytest
 
 #--------------------

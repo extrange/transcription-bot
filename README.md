@@ -32,9 +32,18 @@ To run in the background, do `docker compose up -d`.
 
 Login credentials will be stored in a `<name>.session` file for future runs.
 
+## Development
+
+Dependencies and the virtualenv are managed with [`uv`](https://docs.astral.sh/uv/):
+
+```bash
+uv sync                                  # create .venv and install runtime + dev dependencies
+uv lock --upgrade                        # update dependencies
+```
+
 ## Testing
 
-`coverage run --branch -m pytest && coverage html`
+`uv run coverage run --branch -m pytest && uv run coverage html`
 
 ## Notes
 
