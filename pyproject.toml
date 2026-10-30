@@ -6,7 +6,7 @@ authors = [
     { name = "extrange", email = "29305375+extrange@users.noreply.github.com" },
 ]
 readme = "README.md"
-requires-python = ">=3.12,<4.0"
+requires-python = ">=3.15"
 
 dependencies = [
     "pydantic>=2.8.2,<3.0.0",
@@ -28,14 +28,13 @@ dev = [
     "pyright>=1.1.375,<2.0.0",
     "ruff>=0.5.7,<0.6.0",
     "pytest>=8.3.2,<9.0.0",
-    "pytest-cov>=5.0.0,<6.0.0",
+    "pytest-cov>=7.1.0,<8.0.0",
     "coverage>=7.6.1,<8.0.0",
     "pytest-asyncio>=0.23.8,<0.24.0",
 ]
 
 [tool.uv.sources]
-# Pinned to the commit poetry.lock resolved; HEAD (1.2.0) requires pytest-cov>=7
-python-utils = { git = "https://github.com/extrange/python-utils", rev = "4e001eaaa56758e515198ebce54741914405bdc1" }
+python-utils = { git = "https://github.com/extrange/python-utils" }
 
 [build-system]
 requires = ["hatchling"]
