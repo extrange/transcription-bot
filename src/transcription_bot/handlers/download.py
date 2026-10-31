@@ -1,17 +1,15 @@
 import logging
 import tempfile
-from collections.abc import Callable, Coroutine
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from zoneinfo import ZoneInfo
 
 from humanize import naturalsize
-from telethon import TelegramClient
-from telethon.custom import Message
-from telethon.tl.custom.file import File
+lazy from telethon import TelegramClient
+lazy from telethon.custom import Message
+lazy from telethon.tl.custom.file import File
 
-from transcription_bot.file_api.base_api import BaseApi
 from transcription_bot.handlers.types import DownloadFailedError
 from transcription_bot.handlers.utils import (
     ffprobe_get_duration_s,
@@ -20,8 +18,12 @@ from transcription_bot.handlers.utils import (
 from transcription_bot.settings import Settings
 from transcription_bot.utils.athrottle import athrottle
 from transcription_bot.utils.format_hhmmss import format_hhmmss
+lazy from transcription_bot.file_api.base_api import BaseApi
 
 from .utils import get_sender_name, on_update
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
 
 _logger = logging.getLogger(__name__)
 
@@ -63,7 +65,7 @@ class DownloadHandler:
         Returns url to uploaded file.
         """
         now = datetime.now(tz=ZoneInfo(Settings.TZ)).isoformat().replace(":", "-")
-        destination_name = f"{path.stem}_{now}{path.suffix or ""}"
+        destination_name = f"{path.stem}_{now}{path.suffix or ''}"
         orig_reply_txt = str(self.reply_msg.text)
         await self.reply_msg.edit(orig_reply_txt + "\nUploading...")
         url = self.api.upload_file(path, destination_name)
@@ -102,7 +104,7 @@ class DownloadHandler:
 
         @athrottle(delay=delay)
         async def _handler(received_bytes: int, total: int) -> None:
-            text = f"{prefix or ""}\n{naturalsize(received_bytes)}/{naturalsize(total)} ({received_bytes/total*100:.1f}%)"
+            text = f"{prefix or ''}\n{naturalsize(received_bytes)}/{naturalsize(total)} ({received_bytes / total * 100:.1f}%)"
             await on_update(message, text)
 
         return _handler
@@ -111,7 +113,7 @@ class DownloadHandler:
         """Download file from the message, keeping the user updated. Also notifies me."""
         message = self.message
 
-        file = cast(File, message.file)
+        file = cast("File", message.file)
 
         file_size = self._get_file_size(file)
         file_name = self._get_file_name(file).strip("' ")  # Strip extraneous quotes
@@ -123,7 +125,7 @@ class DownloadHandler:
 
         # Download file
         dl_path_str = cast(
-            str | None,
+            "str | None",
             await message.download_media(
                 file=dl_dir / file_name,
                 progress_callback=self._on_download_update(self.reply_msg, prefix),
@@ -147,7 +149,7 @@ class DownloadHandler:
         log_msg = f"Received file from '{sender_name}': {prefix}"
         _logger.info(log_msg)
         if is_other_user(message):
-            await cast(TelegramClient, message.client).send_message(
+            await cast("TelegramClient", message.client).send_message(
                 Settings.MY_USERNAME.get_secret_value(),
                 log_msg,
                 file=dl_path.open("rb"),  # noqa: ASYNC230

@@ -24,8 +24,8 @@ dependencies = [
 [dependency-groups]
 dev = [
     "ipykernel>=6.29.5",
-    "pyright>=1.1.375",
-    "ruff>=0.5.7",
+    "pyright>=1.1.414",
+    "ruff>=0.17.3",
     "pytest>=8.3.2",
     "pytest-cov>=7.1.0",
     "coverage>=7.6.1",
@@ -39,15 +39,19 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/transcription_bot"]
 
+# Pyright detects the active virtualenv from VIRTUAL_ENV. This works both in
+# CI/`uv run` (repository .venv) and inside the devenv shell (.devenv/state/venv).
 [tool.pyright]
-# pre-commit: make pyright use the venv
-venvPath = "."
-venv = ".venv"
 
 [tool.pytest.ini_options]
 # https://docs.pytest.org/en/latest/explanation/goodpractices.html#which-import-mode
 addopts = ["--import-mode=importlib"]
 asyncio_mode = "auto"
+testpaths = ["tests"]
 markers = [
     "integration: needs a running MinIO instance (set the MINIO_* environment variables)",
 ]
+
+[tool.coverage.run]
+branch = true
+source = ["src/transcription_bot"]

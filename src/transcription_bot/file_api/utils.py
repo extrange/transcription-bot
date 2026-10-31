@@ -1,5 +1,5 @@
-from collections.abc import Callable
 from typing import Any, Concatenate
+lazy from collections.abc import Callable
 
 
 def apply_recursively[T](
@@ -14,9 +14,7 @@ def apply_recursively[T](
     """
     if isinstance(obj, dict):
         for k, v in obj.items():
-            if isinstance(v, dict):
-                apply_recursively(f, obj[k], criteria)
-            elif isinstance(v, list):
+            if isinstance(v, (dict, list)):
                 apply_recursively(f, v, criteria)
             # Only apply criteria at the end, in case the criteria itself looks for dicts or lists.
             elif criteria(v):

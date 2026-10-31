@@ -2,7 +2,7 @@ import copy
 import json
 import logging
 from functools import partial
-from pathlib import Path
+lazy from pathlib import Path
 
 from minio import Minio
 
@@ -77,7 +77,7 @@ class FileApi(BaseApi):
             destination_name,
             str(source_file),
         )
-        logging.info(
+        _logger.info(
             "Uploaded file %s as object %s to bucket %s",
             source_file,
             destination_name,

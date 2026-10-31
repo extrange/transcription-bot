@@ -1,15 +1,16 @@
 import json
 import time
 from functools import partial
-from pathlib import Path
+lazy from pathlib import Path
 
 import pytest
+
 from transcription_bot.file_api.minio_api import FileApi
 from transcription_bot.file_api.policy import Policy
 from transcription_bot.settings import Settings
 
 
-@pytest.fixture()
+@pytest.fixture
 def partial_client() -> partial[FileApi]:
     return partial(
         FileApi,
@@ -19,7 +20,7 @@ def partial_client() -> partial[FileApi]:
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def client(partial_client: partial[FileApi]) -> FileApi:
     return partial_client(
         bucket_name=Settings.MINIO_BUCKET,
@@ -27,7 +28,7 @@ def client(partial_client: partial[FileApi]) -> FileApi:
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def test_file_path(tmp_path: Path):
     _path = tmp_path / "test_file"
     with _path.open("w") as f:
@@ -35,7 +36,7 @@ def test_file_path(tmp_path: Path):
     return _path
 
 
-@pytest.mark.integration()
+@pytest.mark.integration
 def test_bucket_created_if_not_exists(partial_client: partial[FileApi]):
     """Create a test bucket"""
     bucket_name = str(time.time())
@@ -54,7 +55,7 @@ def test_policy_replaced_correctly():
     ) != json.dumps(Policy.public_read_only())
 
 
-@pytest.mark.integration()
+@pytest.mark.integration
 def test_minio_upload(client: FileApi, test_file_path: Path):
     object_name = "my-test-file"
     client.upload_file(test_file_path, object_name)

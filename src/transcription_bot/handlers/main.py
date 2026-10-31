@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import cast
 
 from telethon import Button
-from telethon.custom import Message
 from telethon.events import StopPropagation
+lazy from telethon.custom import Message
 
 from transcription_bot.file_api.minio_api import FileApi
 from transcription_bot.file_api.policy import Policy
@@ -17,12 +17,12 @@ from transcription_bot.handlers.utils import (
     notify_error,
 )
 from transcription_bot.settings import Settings
-from transcription_bot.transcribers.base import BaseTranscriber
 from transcription_bot.transcribers.replicate.thomasmol import (
     ThomasmolParamsWithoutUrl,
     ThomasmolTranscriber,
 )
 from transcription_bot.utils.format_hhmmss import format_hhmmss
+lazy from transcription_bot.transcribers.base import BaseTranscriber
 
 from .download import DownloadHandler
 from .utils import notify_me, on_update
@@ -55,7 +55,7 @@ async def _get_transcript(
         log_cb=partial(_log_progress, reply_msg=reply_msg),
     )
     cancel_msg = cast(
-        Message,
+        "Message",
         await reply_msg.reply(
             "Transcribing...", buttons=[Button.inline("Cancel", pred_id)]
         ),
@@ -110,7 +110,7 @@ async def main_handler(message: Message) -> None:
     """Handle all incoming messages, including /start and audio/video files."""
     if not DownloadHandler.should_handle_message(message):
         reply_msg = cast(
-            Message,
+            "Message",
             await message.reply(
                 "Send me any audio/video file or voice message, and I will transcribe the audio from it for you. Transcribe time is approx 10x realtime.",
                 silent=True,
@@ -118,7 +118,7 @@ async def main_handler(message: Message) -> None:
         )
         raise StopPropagation
 
-    reply_msg = cast(Message, await message.reply("Processing...", silent=True))
+    reply_msg = cast("Message", await message.reply("Processing...", silent=True))
 
     api, transcriber = _prepare_api_and_transcriber()
 
@@ -153,7 +153,7 @@ async def main_handler(message: Message) -> None:
         await notify_me(message, log_msg, f)
 
     # Generate minutes
-    gen_minutes_msg = cast(Message, await message.reply("Generating minutes..."))
+    gen_minutes_msg = cast("Message", await message.reply("Generating minutes..."))
     minutes = await generate_summary(transcript)
     if not minutes:
         await notify_error(message, "Failed to generate minutes!")

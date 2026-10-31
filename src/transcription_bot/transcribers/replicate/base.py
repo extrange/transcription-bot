@@ -1,19 +1,21 @@
 import asyncio
 import logging
 from abc import abstractmethod
-from collections.abc import Callable, Coroutine
-from typing import Any, Concatenate
+from typing import TYPE_CHECKING, Any, Concatenate
 
 import httpx
 import replicate
 import replicate.version
-from replicate.prediction import Prediction
+lazy from replicate.prediction import Prediction
 
 from transcription_bot.handlers.types import TranscriptionTimeoutError
 from transcription_bot.transcribers.base import BaseTranscriber
-from transcription_bot.types import (
+lazy from transcription_bot.types import (
     PredictionStatus,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
 
 _logger = logging.getLogger(__name__)
 
@@ -87,7 +89,7 @@ class ReplicateTranscriberBase(BaseTranscriber):
             logs = prediction.logs
             _logger.info("Prediciton logs: %s", logs)
             task = asyncio.create_task(
-                log_cb(f"{prediction.status}: {logs or "Waiting in queue..."}")
+                log_cb(f"{prediction.status}: {logs or 'Waiting in queue...'}")
             )
             self.tasks.add(task)
             task.add_done_callback(self.tasks.discard)

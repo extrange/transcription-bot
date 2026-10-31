@@ -1,10 +1,11 @@
+name: transcription-bot
+
 services:
   transcription-bot:
+    image: ghcr.io/extrange/transcription-bot:latest
     container_name: transcription-bot
-    build:
-      dockerfile: ./Dockerfile
-      target: deployment
     restart: always
+    init: true
     volumes:
       - ./credentials:/app/credentials
     env_file:

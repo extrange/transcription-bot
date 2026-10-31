@@ -1,0 +1,11 @@
+# Local development override: build the image from this checkout instead of
+# pulling the published one.
+#
+#   docker compose -f compose.yml -f compose.build.yml up --build
+services:
+  transcription-bot:
+    image: transcription-bot:local
+    pull_policy: build
+    build:
+      context: .
+      target: deployment

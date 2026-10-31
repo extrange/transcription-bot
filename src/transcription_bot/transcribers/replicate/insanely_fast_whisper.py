@@ -93,4 +93,4 @@ class InsanelyFastWhisper(ReplicateTranscriberBase):
                 }
         diarization_output.append(current_group)
 
-        return "\n\n".join([f"{s["speaker"]}: {s["text"]}" for s in diarization_output])
+        return "\n\n".join([f"{s['speaker']}: {s['text']}" for s in diarization_output])

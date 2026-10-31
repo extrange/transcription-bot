@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from pathlib import Path
+lazy from pathlib import Path
 
 
 class BaseApi(ABC):

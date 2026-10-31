@@ -3,8 +3,10 @@
 import asyncio
 import functools
 import time
-from collections.abc import Callable, Coroutine
-from typing import Any, overload
+from typing import TYPE_CHECKING, Any, overload
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
 
 
 @overload

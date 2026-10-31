@@ -1,0 +1,12 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["extrange/renovate-config:exceptMajor"],
+  // Don't update the compose file in this repository
+  "packageRules": [
+    {
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/extrange/transcription-bot"],
+      "enabled": false
+    }
+  ]
+}

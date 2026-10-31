@@ -3,12 +3,12 @@ import logging
 import shutil
 import subprocess
 import traceback
-from pathlib import Path
 from typing import cast
+lazy from pathlib import Path
 
 from telethon import TelegramClient, errors
-from telethon.custom import Message
-from telethon.types import User
+lazy from telethon.custom import Message
+lazy from telethon.types import User
 
 from transcription_bot.settings import Settings
 
@@ -30,7 +30,7 @@ async def on_update(message: Message, text: str, parse_mode: str = "html") -> No
 def is_other_user(message: Message) -> bool:
     """Return whether a message is sent from another user other than myself."""
     return (
-        cast(User, message.sender).username != Settings.MY_USERNAME.get_secret_value()
+        cast("User", message.sender).username != Settings.MY_USERNAME.get_secret_value()
     )
 
 
@@ -46,12 +46,12 @@ async def notify_error(
     `err_msg`: Error message to the user
     `exc`: Related exception, if any.
     """
-    client = cast(TelegramClient, message.client)
-    _err_msg = f"{err_msg}:\n<pre>{"".join(traceback.format_exception(exc, limit=5)) if exc else "No additional details available"}</pre>"
+    client = cast("TelegramClient", message.client)
+    _err_msg = f"{err_msg}:\n<pre>{''.join(traceback.format_exception(exc, limit=5)) if exc else 'No additional details available'}</pre>"
 
-    sender = cast(User, await message.get_sender())
+    sender = cast("User", await message.get_sender())
 
-    _logger.exception(err_msg)
+    _logger.error(err_msg)
 
     if is_other_user(message):
         # Notify me
@@ -109,7 +109,7 @@ async def notify_me(message: Message, text: str, file: Path | None) -> None:
     log_msg = f"Notification from {sender}:\n{text}"
     _logger.info(log_msg)
 
-    await cast(TelegramClient, message.client).send_message(
+    await cast("TelegramClient", message.client).send_message(
         Settings.MY_USERNAME.get_secret_value(),
         log_msg,
         file=file.open("rb") if file else None,  # pyright: ignore[reportArgumentType]

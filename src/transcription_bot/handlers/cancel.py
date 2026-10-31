@@ -1,7 +1,7 @@
 import logging
 
-from telethon import events
 from telethon.events import StopPropagation
+lazy from telethon import events
 
 from transcription_bot.handlers.utils import notify_error
 from transcription_bot.transcribers.replicate.thomasmol import ThomasmolTranscriber

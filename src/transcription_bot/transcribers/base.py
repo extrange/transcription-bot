@@ -1,8 +1,10 @@
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Coroutine
-from typing import Concatenate
+from typing import TYPE_CHECKING, Concatenate
 
-from transcription_bot.types import PredictionStatus
+lazy from transcription_bot.types import PredictionStatus
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
 
 
 class BaseTranscriber(ABC):
