@@ -16,3 +16,11 @@ class TranscriptionFailedError(Exception):
 
 class TranscriptionTimeoutError(Exception):
     """Failed > 3 attempts to transcribe."""
+
+
+class ReencodeError(Exception):
+    """Failed to re-encode the audio."""
+
+
+class FileTooLargeError(Exception):
+    """Audio does not fit the upload limit even after re-encoding."""

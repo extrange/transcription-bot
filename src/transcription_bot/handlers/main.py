@@ -9,8 +9,7 @@ from telethon import Button
 from telethon.events import StopPropagation
 lazy from telethon.custom import Message
 
-from transcription_bot.file_api.minio_api import FileApi
-from transcription_bot.file_api.policy import Policy
+from transcription_bot.file_api.replicate_api import FileApi
 from transcription_bot.handlers.summary import generate_summary
 from transcription_bot.handlers.types import TranscriptionFailedError
 from transcription_bot.handlers.utils import (
@@ -74,14 +73,7 @@ async def _get_transcript(
 
 
 def _prepare_api_and_transcriber() -> tuple[FileApi, BaseTranscriber]:
-    api = FileApi(
-        host=Settings.MINIO_HOST,
-        access_key=Settings.MINIO_ACCESS_KEY.get_secret_value(),
-        bucket_name=Settings.MINIO_BUCKET,
-        secret_key=Settings.MINIO_SECRET_KEY.get_secret_value(),
-        default_policy=Policy.none(),
-        presign_expiry_days=Settings.MINIO_PRESIGN_EXPIRY_DAYS,
-    )
+    api = FileApi()
     transcriber: BaseTranscriber = ThomasmolTranscriber(
         Settings.MODEL_VERSION,
         ThomasmolParamsWithoutUrl(),
@@ -95,13 +87,15 @@ async def _download(
     """
     Download the file attached to the message.
 
-    Returns tuple of [Minio URL, Path.stem of the downloaded file]
+    Returns tuple of [URL of the uploaded file, Path.stem of the downloaded file]
     """
     try:
         handler = DownloadHandler(message, reply_msg, api)
         url, filename = await handler.download()
 
     except Exception as e:
+        # The upload may have succeeded before a later step failed.
+        await api.cleanup()
         await notify_error(message, "Encountered error:", e)
         raise StopPropagation from e
     return url, filename
@@ -139,6 +133,9 @@ async def main_handler(message: Message) -> None:
     except Exception as e:
         await notify_error(message, "Transcription failed", e)
         raise StopPropagation from e
+    finally:
+        # The audio is only needed while the prediction runs.
+        await api.cleanup()
 
     done_txt = f"Transcription done in {format_hhmmss(time.time() - start)}. Sending transcript..."
     await reply_msg.edit(done_txt)

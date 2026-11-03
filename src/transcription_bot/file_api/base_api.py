@@ -5,10 +5,13 @@ lazy from pathlib import Path
 class BaseApi(ABC):
     """Base API class for classes providing file storage operations."""
 
-    @abstractmethod
-    def upload_file(self, source_file: Path, destination_name: str) -> str:
-        """Upload a file to the storage."""
+    max_upload_bytes: int
+    """Largest file this backend accepts, in bytes."""
 
     @abstractmethod
-    def download_file(self, object_name: str, destination_path: Path) -> None:
-        """Download a file from the storage."""
+    async def upload_file(self, source_file: Path, destination_name: str) -> str:
+        """Upload a file and return a URL that external services can fetch."""
+
+    @abstractmethod
+    async def cleanup(self) -> None:
+        """Delete any files uploaded through this instance."""

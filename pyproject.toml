@@ -14,9 +14,8 @@ dependencies = [
     "uvloop>=0.23.0",
     "hachoir>=3.3.0",
     "pysubs2>=1.7.3",
-    "replicate>=0.31.0",
+    "replicate>=1.0.7",
     "humanize>=4.10.0",
-    "minio>=7.2.7",
     "telethon>=1.36.0",
     "openai>=1.41.1",
 ]
@@ -47,10 +46,8 @@ packages = ["src/transcription_bot"]
 # https://docs.pytest.org/en/latest/explanation/goodpractices.html#which-import-mode
 addopts = ["--import-mode=importlib"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
-markers = [
-    "integration: needs a running MinIO instance (set the MINIO_* environment variables)",
-]
 
 [tool.coverage.run]
 branch = true

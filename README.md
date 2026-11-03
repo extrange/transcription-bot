@@ -18,7 +18,7 @@ Clone this repo:
 git clone https://github.com/extrange/transcription-bot.git
 ```
 
-Obtain the Telegram API credentials (`API_ID` and `API_HASH`) for your account from [my.telegram.org][mytelegram]. You will also need a [Replicate][replicate] API token, MinIO/S3 credentials, and an OpenAI-compatible API key.
+Obtain the Telegram API credentials (`API_ID` and `API_HASH`) for your account from [my.telegram.org][mytelegram]. You will also need a [Replicate][replicate] API token and an OpenAI-compatible API key.
 
 Create your local configuration from the template:
 
@@ -31,10 +31,11 @@ Only these variables are required:
 - `API_ID`, `API_HASH` — Telegram API credentials
 - `MY_USERNAME` — your own Telegram username, used for notifications
 - `REPLICATE_API_TOKEN` — read directly by the Replicate SDK, not by `Settings`
-- `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` — MinIO/S3 credentials
 - `OPENAI_API_KEY` — OpenAI-compatible API key
 
-Everything else (`SESSION_FILE`, `MINIO_HOST`, `MINIO_BUCKET`, `MODEL_VERSION`, `OPENAI_BASE_URL`, `OPENAI_MODEL_NAME`, `TZ`, and `LOG_LEVEL`) has a sane default in [`settings.py`](src/transcription_bot/settings.py) and only needs to be set in `.env` when the default does not fit. Keep real values in `.env` (ignored by git), not in `compose.yml`.
+Everything else (`SESSION_FILE`, `MODEL_VERSION`, `OPENAI_BASE_URL`, `OPENAI_MODEL_NAME`, `TZ`, and `LOG_LEVEL`) has a sane default in [`settings.py`](src/transcription_bot/settings.py) and only needs to be set in `.env` when the default does not fit. Keep real values in `.env` (ignored by git), not in `compose.yml`.
+
+Audio is uploaded to Replicate's Files API for transcription and deleted once the prediction finishes. Files larger than Replicate's ~100 MiB upload limit are re-encoded to 16 kHz mono Opus first; if the re-encoded audio still does not fit, the bot asks the user to send a shorter file.
 
 Pull and run the image published by CI. Compose loads `.env` automatically:
 

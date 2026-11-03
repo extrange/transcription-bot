@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import tempfile
 from datetime import datetime
@@ -10,10 +11,12 @@ lazy from telethon import TelegramClient
 lazy from telethon.custom import Message
 lazy from telethon.tl.custom.file import File
 
-from transcription_bot.handlers.types import DownloadFailedError
+from transcription_bot.handlers.types import DownloadFailedError, FileTooLargeError
 from transcription_bot.handlers.utils import (
     ffprobe_get_duration_s,
+    fit_audio_bitrate_kbps,
     is_other_user,
+    reencode_audio_for_upload,
 )
 from transcription_bot.settings import Settings
 from transcription_bot.utils.athrottle import athrottle
@@ -29,7 +32,7 @@ _logger = logging.getLogger(__name__)
 
 
 class DownloadHandler:
-    """A method class which performs downloads from messages, uploads to Minio and then updates the user."""
+    """A method class which performs downloads from messages, uploads the audio and then updates the user."""
 
     def __init__(self, message: Message, reply_msg: Message, api: BaseApi) -> None:
         """
@@ -56,27 +59,61 @@ class DownloadHandler:
     def _get_file_name(self, file: File) -> str:
         return f"'{file.name}'" if file.name else "voice message"
 
+    async def _fit_upload_limit(self, path: Path) -> Path:
+        """
+        Re-encode the audio when it exceeds the upload limit.
+
+        Returns `path` unchanged when it already fits, otherwise the path to a
+        16 kHz mono Opus copy sized to fit.
+
+        Raises FileTooLargeError if even the lowest supported bitrate is too big.
+        """
+        limit = self.api.max_upload_bytes
+        if (await asyncio.to_thread(path.stat)).st_size <= limit:
+            return path
+
+        duration_s = ffprobe_get_duration_s(path)
+        bitrate_kbps = fit_audio_bitrate_kbps(duration_s, limit)
+
+        await self.reply_msg.edit(
+            f"{self.reply_msg.text}\nAudio exceeds the upload limit. "
+            f"Re-encoding at {bitrate_kbps} kbps..."
+        )
+        reencoded = await reencode_audio_for_upload(path, bitrate_kbps)
+        size = (await asyncio.to_thread(reencoded.stat)).st_size
+        if size > limit:
+            msg = (
+                f"Audio is too long to transcribe: {naturalsize(size)} even after "
+                f"re-encoding at {bitrate_kbps} kbps. Please split it into shorter files."
+            )
+            raise FileTooLargeError(msg)
+
+        return reencoded
+
     async def _upload_file(self, path: Path) -> str:
         """
         Upload file using a BaseApi class.
+
+        Re-encodes the audio first if it is too large to upload.
 
         Suffixes the current timestamp to the filename, for the destination filename.
 
         Returns url to uploaded file.
         """
+        upload_path = await self._fit_upload_limit(path)
         now = datetime.now(tz=ZoneInfo(Settings.TZ)).isoformat().replace(":", "-")
-        destination_name = f"{path.stem}_{now}{path.suffix or ''}"
+        destination_name = f"{upload_path.stem}_{now}{upload_path.suffix or ''}"
         orig_reply_txt = str(self.reply_msg.text)
         await self.reply_msg.edit(orig_reply_txt + "\nUploading...")
-        url = self.api.upload_file(path, destination_name)
+        url = await self.api.upload_file(upload_path, destination_name)
         await self.reply_msg.edit(orig_reply_txt + "\nUpload complete.")
         return url
 
     async def download(self) -> tuple[str, str]:
         """
-        Start downloading content from a message, then uploads it to Minio.
+        Start downloading content from a message, then upload it for transcription.
 
-        Returns tuple of [Minio URL of the uploaded file, Path.stem of the downloaded file.].
+        Returns tuple of [URL of the uploaded file, Path.stem of the downloaded file.].
 
         Keeps the user informed of progress.
 

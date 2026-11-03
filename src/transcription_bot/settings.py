@@ -19,24 +19,11 @@ class _Settings(BaseSettings):
     # Required: no sensible default.
     API_HASH: SecretStr
     API_ID: int
-    MINIO_ACCESS_KEY: SecretStr
-    MINIO_SECRET_KEY: SecretStr
     MY_USERNAME: SecretStr
     OPENAI_API_KEY: SecretStr
 
     # Optional: sane defaults, overridable from the environment.
     SESSION_FILE: Path = Path("credentials/account.session")
-    MINIO_HOST: str = "localhost:9000"
-    MINIO_BUCKET: str = "transcription-bot"
-    MINIO_PRESIGN_EXPIRY_DAYS: int = Field(
-        default=7,
-        ge=1,
-        le=7,
-        description=(
-            "Lifetime of the presigned download URLs handed out after upload. "
-            "S3 and MinIO cap presigned GET URLs at 7 days."
-        ),
-    )
     MODEL_VERSION: str = Field(
         default="latest",
         description=(

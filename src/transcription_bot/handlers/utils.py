@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import shutil
@@ -10,9 +11,15 @@ from telethon import TelegramClient, errors
 lazy from telethon.custom import Message
 lazy from telethon.types import User
 
+from transcription_bot.handlers.types import ReencodeError
 from transcription_bot.settings import Settings
 
 _logger = logging.getLogger(__name__)
+
+# Opus is transparent enough for speech at 32 kbps and Whisper only looks at
+# frequencies up to 16 kHz anyway. Re-encode at a lower rate only when needed.
+MAX_AUDIO_BITRATE_KBPS = 32
+MIN_AUDIO_BITRATE_KBPS = 8
 
 
 async def on_update(message: Message, text: str, parse_mode: str = "html") -> None:
@@ -92,6 +99,64 @@ def ffprobe_get_duration_s(path: Path) -> float:
     )
 
     return float(json.loads(proc.stdout)["format"]["duration"])
+
+
+def fit_audio_bitrate_kbps(duration_s: float, max_bytes: int) -> int:
+    """
+    Return the Opus bitrate that keeps `duration_s` within `max_bytes`.
+
+    Leaves 5% of the budget for container and stream overhead, and clamps the
+    result to a range where speech remains intelligible.
+    """
+    if duration_s <= 0:
+        return MAX_AUDIO_BITRATE_KBPS
+
+    bitrate_kbps = int(max_bytes * 8 * 0.95 / duration_s / 1000)
+    return max(MIN_AUDIO_BITRATE_KBPS, min(MAX_AUDIO_BITRATE_KBPS, bitrate_kbps))
+
+
+async def reencode_audio_for_upload(source: Path, bitrate_kbps: int) -> Path:
+    """
+    Re-encode `source` to 16 kHz mono Opus, returning the new file's path.
+
+    Re-encoding is lossy, but speech recognition only uses the 0-16 kHz band.
+    """
+    # Resolve to an absolute path so the security linter sees a trusted binary
+    ffmpeg = shutil.which("ffmpeg") or "ffmpeg"
+    destination = source.with_name(f"{source.stem}.upload.opus")
+
+    proc = await asyncio.create_subprocess_exec(
+        ffmpeg,
+        "-nostdin",
+        "-y",
+        "-loglevel",
+        "error",
+        "-i",
+        str(source),
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        "-c:a",
+        "libopus",
+        "-b:a",
+        f"{bitrate_kbps}k",
+        str(destination),
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+
+    if proc.returncode != 0:
+        msg = (
+            f"ffmpeg failed to re-encode {source.name}: "
+            f"{stderr.decode(errors='replace')}"
+        )
+        raise ReencodeError(msg)
+
+    _logger.info("Re-encoded %s to %s at %s kbps", source, destination, bitrate_kbps)
+    return destination
 
 
 async def notify_me(message: Message, text: str, file: Path | None) -> None:
