@@ -43,7 +43,7 @@ docker compose pull
 docker compose up -d
 ```
 
-Login credentials will be stored in the path configured by `SESSION_FILE`, which defaults to `credentials/telegram.session`.
+Login credentials will be stored in the path configured by `SESSION_FILE`, which defaults to `credentials/account.session`.
 
 To build the image from this checkout instead, use the local override:
 

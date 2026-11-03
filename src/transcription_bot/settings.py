@@ -7,7 +7,7 @@ directly from the environment.
 import logging
 from pathlib import Path
 
-from pydantic import SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,10 +25,17 @@ class _Settings(BaseSettings):
     OPENAI_API_KEY: SecretStr
 
     # Optional: sane defaults, overridable from the environment.
-    SESSION_FILE: Path = Path("credentials/telegram.session")
+    SESSION_FILE: Path = Path("credentials/account.session")
     MINIO_HOST: str = "localhost:9000"
     MINIO_BUCKET: str = "transcription-bot"
-    MODEL_VERSION: str = "latest"
+    MODEL_VERSION: str = Field(
+        default="latest",
+        description=(
+            "Replicate model version to use for transcription. Use 'latest' to "
+            "always run the model's newest version, or pin a specific version "
+            "hash for reproducible results."
+        ),
+    )
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     OPENAI_MODEL_NAME: str = "gpt-4o-mini"
     TZ: str = "Asia/Singapore"
