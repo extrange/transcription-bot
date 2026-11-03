@@ -28,6 +28,15 @@ class Policy:
         }
 
     @classmethod
+    def none(cls) -> None:
+        """Return no policy: the bucket keeps only credentialed access.
+
+        With no bucket policy, objects are reachable only by callers holding the
+        MinIO credentials or by a presigned URL. Use this when download links are
+        presigned rather than public.
+        """
+
+    @classmethod
     def public_read_and_write(
         cls,
         bucket_placeholder: str = DEFAULT_BUCKET_PLACEHOLDER,

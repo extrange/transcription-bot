@@ -28,6 +28,15 @@ class _Settings(BaseSettings):
     SESSION_FILE: Path = Path("credentials/account.session")
     MINIO_HOST: str = "localhost:9000"
     MINIO_BUCKET: str = "transcription-bot"
+    MINIO_PRESIGN_EXPIRY_DAYS: int = Field(
+        default=7,
+        ge=1,
+        le=7,
+        description=(
+            "Lifetime of the presigned download URLs handed out after upload. "
+            "S3 and MinIO cap presigned GET URLs at 7 days."
+        ),
+    )
     MODEL_VERSION: str = Field(
         default="latest",
         description=(

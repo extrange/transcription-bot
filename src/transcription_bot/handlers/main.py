@@ -79,7 +79,8 @@ def _prepare_api_and_transcriber() -> tuple[FileApi, BaseTranscriber]:
         access_key=Settings.MINIO_ACCESS_KEY.get_secret_value(),
         bucket_name=Settings.MINIO_BUCKET,
         secret_key=Settings.MINIO_SECRET_KEY.get_secret_value(),
-        default_policy=Policy.public_read_only(),
+        default_policy=Policy.none(),
+        presign_expiry_days=Settings.MINIO_PRESIGN_EXPIRY_DAYS,
     )
     transcriber: BaseTranscriber = ThomasmolTranscriber(
         Settings.MODEL_VERSION,
