@@ -33,7 +33,8 @@ coverage.xml
 credentials
 *.session
 *.session-journal
-env
+.env
+.env.*
 
 # Not needed inside the image
 tests

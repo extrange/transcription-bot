@@ -5,7 +5,6 @@ FROM python:3.15-slim@sha256:94d3426f1def7db4a106a232ac121bfd975393e5dfd40a619b9
 COPY --from=ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 /uv /uvx /bin/
 
 ENV APP_DIR=/app \
-    TZ=Asia/Singapore \
     PYTHONPATH=/app/src \
     PYTHONUNBUFFERED=1 \
     UV_CACHE_DIR=/home/user/.cache/uv \
@@ -17,7 +16,7 @@ ENV APP_DIR=/app \
 ENV PATH="/app/.venv/bin:$PATH"
 
 # ffmpeg provides ffprobe, which is used to measure media duration. tzdata is
-# required for the `ZoneInfo("Asia/Singapore")` lookup in the handlers.
+# required for ZoneInfo lookups (Settings.TZ defaults to Asia/Singapore).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg tzdata \
     && rm -rf /var/lib/apt/lists/* \

@@ -6,8 +6,20 @@ services:
     container_name: transcription-bot
     restart: always
     init: true
+    # Configuration comes from .env (see .env.example). Only the settings
+    # without a sensible default are required here; everything else has a
+    # default in src/transcription_bot/settings.py.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      API_HASH: "${API_HASH:?API_HASH is required}"
+      API_ID: "${API_ID:?API_ID is required}"
+      MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}"
+      MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required}"
+      MY_USERNAME: "${MY_USERNAME:?MY_USERNAME is required}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:?OPENAI_API_KEY is required}"
+      # The Replicate SDK reads this directly, not through settings.py.
+      REPLICATE_API_TOKEN: "${REPLICATE_API_TOKEN:?REPLICATE_API_TOKEN is required}"
     volumes:
       - ./credentials:/app/credentials
-    env_file:
-      - path: env/prod.env
-        required: true

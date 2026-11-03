@@ -1,31 +1,37 @@
-import logging
-lazy from pathlib import Path
+"""Runtime settings, read from environment variables.
 
-from pydantic import (
-    SecretStr,
-    field_validator,
-)
-from pydantic_settings import BaseSettings
+`REPLICATE_API_TOKEN` is intentionally absent: the Replicate SDK reads it
+directly from the environment.
+"""
+
+import logging
+from pathlib import Path
+
+from pydantic import SecretStr, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class _Settings(BaseSettings):
-    SESSION_FILE: Path
-    TOKEN: SecretStr
+    """All runtime configuration, supplied as environment variables."""
+
+    model_config = SettingsConfigDict(extra="ignore")
+
+    # Required: no sensible default.
     API_HASH: SecretStr
     API_ID: int
-    MY_USERNAME: SecretStr
-    REPLICATE_API_TOKEN: SecretStr
     MINIO_ACCESS_KEY: SecretStr
     MINIO_SECRET_KEY: SecretStr
-    MINIO_HOST: str
-    MINIO_BUCKET: str
-    MODEL_VERSION: str = "latest"
-    OPENAI_BASE_URL: str
+    MY_USERNAME: SecretStr
     OPENAI_API_KEY: SecretStr
-    OPENAI_MODEL_NAME: str
-    HF_TOKEN: SecretStr
 
-    TZ: str
+    # Optional: sane defaults, overridable from the environment.
+    SESSION_FILE: Path = Path("credentials/telegram.session")
+    MINIO_HOST: str = "localhost:9000"
+    MINIO_BUCKET: str = "transcription-bot"
+    MODEL_VERSION: str = "latest"
+    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
+    OPENAI_MODEL_NAME: str = "gpt-4o-mini"
+    TZ: str = "Asia/Singapore"
     LOG_LEVEL: str = "INFO"
 
     @field_validator("LOG_LEVEL")

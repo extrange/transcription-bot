@@ -4,23 +4,14 @@ import os
 
 import pytest
 
-# Settings that the app requires but that tests should not need real values for
+# Required settings that the app needs but that tests should not need real values for
 _SETTINGS_PLACEHOLDERS = {
     "API_HASH": "test-api-hash",
     "API_ID": "0",
-    "HF_TOKEN": "test-hf-token",
     "MINIO_ACCESS_KEY": "test-minio-access-key",
-    "MINIO_BUCKET": "test-minio-bucket",
-    "MINIO_HOST": "localhost:9000",
     "MINIO_SECRET_KEY": "test-minio-secret-key",
     "MY_USERNAME": "@test",
     "OPENAI_API_KEY": "test-openai-api-key",
-    "OPENAI_BASE_URL": "http://localhost:8080",
-    "OPENAI_MODEL_NAME": "test-model",
-    "REPLICATE_API_TOKEN": "test-replicate-token",
-    "SESSION_FILE": "test.session",
-    "TOKEN": "000000000:test-token",
-    "TZ": "UTC",
 }
 
 _MINIO_SETTINGS = ("MINIO_ACCESS_KEY", "MINIO_BUCKET", "MINIO_HOST", "MINIO_SECRET_KEY")

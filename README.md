@@ -18,18 +18,32 @@ Clone this repo:
 git clone https://github.com/extrange/transcription-bot.git
 ```
 
-[Create a Telegram bot][botfather] and obtain the API key (it looks like `110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw`).
+Obtain the Telegram API credentials (`API_ID` and `API_HASH`) for your account from [my.telegram.org][mytelegram]. You will also need a [Replicate][replicate] API token, MinIO/S3 credentials, and an OpenAI-compatible API key.
 
-Provide `env/prod.env` with the settings required by [`Settings`](src/transcription_bot/settings.py). Compose reads this file at runtime.
+Create your local configuration from the template:
 
-Pull and run the image published by CI:
+```bash
+cp .env.example .env
+```
+
+Only these variables are required:
+
+- `API_ID`, `API_HASH` — Telegram API credentials
+- `MY_USERNAME` — your own Telegram username, used for notifications
+- `REPLICATE_API_TOKEN` — read directly by the Replicate SDK, not by `Settings`
+- `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` — MinIO/S3 credentials
+- `OPENAI_API_KEY` — OpenAI-compatible API key
+
+Everything else (`SESSION_FILE`, `MINIO_HOST`, `MINIO_BUCKET`, `MODEL_VERSION`, `OPENAI_BASE_URL`, `OPENAI_MODEL_NAME`, `TZ`, and `LOG_LEVEL`) has a sane default in [`settings.py`](src/transcription_bot/settings.py) and only needs to be set in `.env` when the default does not fit. Keep real values in `.env` (ignored by git), not in `compose.yml`.
+
+Pull and run the image published by CI. Compose loads `.env` automatically:
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-Login credentials will be stored in `credentials/<name>.session` for future runs.
+Login credentials will be stored in the path configured by `SESSION_FILE`, which defaults to `credentials/telegram.session`.
 
 To build the image from this checkout instead, use the local override:
 
@@ -73,5 +87,6 @@ CI runs the linters, type checker, and tests on every push and pull request, the
 `MY_USERNAME` is your own Telegram username. It is used to alert you when users use your bot. To obtain it, use [@RawDataBot][rawdatabot] or check your Telegram profile.
 
 [`faster-whisper`]: https://github.com/guillaumekln/faster-whisper
-[botfather]: https://core.telegram.org/bots/features#creating-a-new-bot
+[mytelegram]: https://my.telegram.org
+[replicate]: https://replicate.com/account/api-tokens
 [rawdatabot]: https://t.me/RawDataBot
